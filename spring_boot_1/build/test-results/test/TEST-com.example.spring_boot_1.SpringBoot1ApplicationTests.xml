@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.spring_boot_1.SpringBoot1ApplicationTests" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-04-30T18:27:49.575Z" hostname="BOOK-T487RCET4R" time="7.18">
+  <properties/>
+  <testcase name="testJpa()" classname="com.example.spring_boot_1.SpringBoot1ApplicationTests" time="0.52"/>
+  <system-out><![CDATA[03:27:49.855 [Test worker] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.example.spring_boot_1.SpringBoot1ApplicationTests]: SpringBoot1ApplicationTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+03:27:50.043 [Test worker] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.example.spring_boot_1.SpringBoot1Application for test class com.example.spring_boot_1.SpringBoot1ApplicationTests
+03:27:50.201 [Test worker] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.example.spring_boot_1.SpringBoot1ApplicationTests]: SpringBoot1ApplicationTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+03:27:50.203 [Test worker] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.example.spring_boot_1.SpringBoot1Application for test class com.example.spring_boot_1.SpringBoot1ApplicationTests
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.0.5)
+
+2026-05-01T03:27:50.688+09:00  INFO 25364 --- [spring_boot_1] [    Test worker] c.e.s.SpringBoot1ApplicationTests        : Starting SpringBoot1ApplicationTests using Java 17.0.6 with PID 25364 (started by kangk in D:\coding\backend\spring_boot_1)
+2026-05-01T03:27:50.692+09:00  INFO 25364 --- [spring_boot_1] [    Test worker] c.e.s.SpringBoot1ApplicationTests        : No active profile set, falling back to 1 default profile: "default"
+2026-05-01T03:27:51.876+09:00  INFO 25364 --- [spring_boot_1] [    Test worker] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-05-01T03:27:51.952+09:00  INFO 25364 --- [spring_boot_1] [    Test worker] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 61 ms. Found 2 JPA repository interfaces.
+2026-05-01T03:27:52.546+09:00  INFO 25364 --- [spring_boot_1] [    Test worker] org.hibernate.orm.jpa                    : HHH008540: Processing PersistenceUnitInfo [name: default]
+2026-05-01T03:27:52.645+09:00  INFO 25364 --- [spring_boot_1] [    Test worker] org.hibernate.orm.core                   : HHH000001: Hibernate ORM core version 7.2.7.Final
+2026-05-01T03:27:53.342+09:00  INFO 25364 --- [spring_boot_1] [    Test worker] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-05-01T03:27:53.390+09:00  INFO 25364 --- [spring_boot_1] [    Test worker] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-05-01T03:27:53.784+09:00  INFO 25364 --- [spring_boot_1] [    Test worker] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@2665a2e7
+2026-05-01T03:27:53.787+09:00  INFO 25364 --- [spring_boot_1] [    Test worker] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-05-01T03:27:53.899+09:00  INFO 25364 --- [spring_boot_1] [    Test worker] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [jdbc:mysql://localhost:3306/testdb]
+	Database driver: MySQL Connector/J
+	Database dialect: MySQLDialect
+	Database version: 8.0.46
+	Default catalog/schema: testdb/undefined
+	Autocommit mode: undefined/unknown
+	Isolation level: REPEATABLE_READ [default REPEATABLE_READ]
+	JDBC fetch size: none
+	Pool: DataSourceConnectionProvider
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-05-01T03:27:54.898+09:00  INFO 25364 --- [spring_boot_1] [    Test worker] org.hibernate.orm.core                   : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+Hibernate: alter table link_data modify column user_id varchar(255)
+2026-05-01T03:27:54.996+09:00  INFO 25364 --- [spring_boot_1] [    Test worker] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-05-01T03:27:55.108+09:00  WARN 25364 --- [spring_boot_1] [    Test worker] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-05-01T03:27:55.841+09:00  INFO 25364 --- [spring_boot_1] [    Test worker] o.s.d.j.r.query.QueryEnhancerFactories   : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-05-01T03:27:56.200+09:00  INFO 25364 --- [spring_boot_1] [    Test worker] c.e.s.SpringBoot1ApplicationTests        : Started SpringBoot1ApplicationTests in 5.917 seconds (process running for 8.158)
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
