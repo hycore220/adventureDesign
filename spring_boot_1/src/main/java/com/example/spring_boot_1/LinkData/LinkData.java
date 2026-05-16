@@ -28,5 +28,9 @@ public class LinkData {
     @Column
     private LocalDateTime lastUpdate;
 
-
+    @PrePersist
+    @PreUpdate
+    public void updateTime() {
+        this.lastUpdate = LocalDateTime.now();
+    }
 }

@@ -1,6 +1,5 @@
 package com.example.spring_boot_1.LinkData;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -8,11 +7,14 @@ import java.util.List;
 
 @CrossOrigin(origins = "http://localhost:5173")
 @RestController
-@RequiredArgsConstructor
 @RequestMapping("/link")
 public class LinkController {
 
     private final LinkDataService linkDataService;
+
+    public LinkController(LinkDataService linkDataService) {
+        this.linkDataService = linkDataService;
+    }
 
     @PostMapping("/create")
     public ResponseEntity<String> create(@RequestBody LinkData linkData) {
