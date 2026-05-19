@@ -17,27 +17,30 @@ public class LinkController {
     }
 
     @PostMapping("/create")
-    public ResponseEntity<String> create(@RequestBody LinkData linkData) {
-        linkDataService.create(linkData.getLink(), linkData.getUserName(), linkData.getPARAStatus());
-        return ResponseEntity.ok("저장 완료");
+    public ResponseEntity<String> create(@RequestBody LinkRequest linkRequest) {
+        linkDataService.create(linkRequest);
+        return ResponseEntity.ok("링크 저장 완료");
     }
 
-    @GetMapping("/{userName}")
-    public ResponseEntity<List<LinkData>> getByUserName(@PathVariable String userName) {
+    @GetMapping("/user/{userName}")
+    public ResponseEntity<List<LinkResponse>> getByUserName(@PathVariable String userName) {
         return ResponseEntity.ok(linkDataService.getByUserName(userName));
     }
 
-    // 수정
-    @PutMapping("/{id}")
-    public ResponseEntity<String> update(@PathVariable int id, @RequestBody LinkData linkData) {
-        linkDataService.update(id, linkData.getLink(), linkData.getUserName(), linkData.getPARAStatus());
-        return ResponseEntity.ok("수정 완료");
+    @GetMapping("/folder/{folderId}")
+    public ResponseEntity<List<LinkResponse>> getByFolderId(@PathVariable int folderId) {
+        return ResponseEntity.ok(linkDataService.getByFolderId(folderId));
     }
 
-    // 삭제
+    @PutMapping("/{id}")
+    public ResponseEntity<String> update(@PathVariable int id, @RequestBody LinkRequest linkRequest) {
+        linkDataService.update(id, linkRequest);
+        return ResponseEntity.ok("링크 수정 및 이동 완료");
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<String> delete(@PathVariable int id) {
         linkDataService.delete(id);
-        return ResponseEntity.ok("삭제 완료");
+        return ResponseEntity.ok("링크 삭제 완료");
     }
 }
