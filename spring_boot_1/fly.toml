@@ -1,0 +1,72 @@
+# =============================================================================
+#  Fly.io 배포 설정 — save-it Spring 백엔드 (베타)
+#
+#  핵심 결정:
+#    1. 단일 머신 고정 (auto_stop_machines = false, min_machines_running = 1)
+#       → in-memory RateLimiter, @Scheduled 디지스트 잡 모두 JVM 메모리 기반.
+#         멀티 인스턴스 가는 즉시 카운터 분리/잡 중복 발생.
+#       → 베타 안정화 전까지 1대 운영, 트래픽 늘면 Redis + ShedLock 으로 옮긴 뒤 스케일.
+#       → JWT 인증 자체는 stateless 라 스케일 가능 (위 두 컴포넌트만 막음).
+#
+#    2. 메모리 1GB / vCPU 1 (shared-cpu-1x)
+#       → Spring Boot 4 + JPA + Hibernate → 콜드 부팅 시 힙 350MB 정도.
+#         1GB 면 여유, 충분.
+#       → 부족하면 `fly scale memory 2048` 로 변경.
+#
+#    3. region = nrt (Tokyo)
+#       → 베타 유저가 한국 위주라면 가장 가까운 region. 미국 사용자 위주면 sjc.
+#
+#    4. DB 는 외부 호스팅 Postgres (Supabase / Neon / Fly native).
+#       → fly secrets 로 SPRING_DATASOURCE_URL 주입.
+#       → 자세한 옵션은 DEPLOY.md 참고.
+# =============================================================================
+
+app = "save-it-backend"
+primary_region = "nrt"
+
+[build]
+  dockerfile = "Dockerfile"
+
+# -----------------------------------------------------------------------------
+#  Health check — Dockerfile HEALTHCHECK 와 Fly proxy 가 둘 다 사용 가능.
+#  /health 는 SecurityConfig 에서 permitAll 로 열어둠.
+# -----------------------------------------------------------------------------
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false       # 베타 — 인스턴스 죽이지 않음 (rate limiter 카운터 보존)
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "60s"           # JVM 부팅 여유
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/health"
+
+# -----------------------------------------------------------------------------
+#  VM 사양 — shared-cpu-1x / 1GB. 충분.
+# -----------------------------------------------------------------------------
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 1024
+
+# -----------------------------------------------------------------------------
+#  환경 변수 (비-secret) — secret 은 `fly secrets set ...` 로 따로 주입
+#  - 비밀번호/API 키는 절대 여기 두지 말 것
+# -----------------------------------------------------------------------------
+[env]
+  SPRING_PROFILES_ACTIVE = "prod"
+  SPRING_JPA_DDL_AUTO = "update"
+  APP_RATELIMIT_LINK_CREATE = "200"
+  # JWT TTL — 보안/UX 트레이드오프. 짧을수록 안전, 길수록 사용자 편함
+  APP_JWT_ACCESS_TTL_MINUTES = "15"
+  APP_JWT_REFRESH_TTL_DAYS = "7"
+  # 디지스트 cron — KST 09:00. fly secrets 로 시각 변경 가능
+  APP_REMINDER_DAILY_CRON = "0 0 9 * * *"
+  # CORS — 프론트 도메인이 정해지면 fly secrets 로 덮어쓰기
+  APP_CORS_ALLOWED_ORIGINS = "http://localhost:3000"
+  # APP_JWT_SECRET 은 fly secrets 로만 주입 (절대 여기 두지 말 것)

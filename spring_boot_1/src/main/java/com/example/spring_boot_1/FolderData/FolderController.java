@@ -6,7 +6,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@CrossOrigin(origins = "http://localhost:5173")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/folder")
@@ -36,5 +35,17 @@ public class FolderController {
     public ResponseEntity<String> createFolder(@RequestBody FolderRequest folderRequest) {
         folderService.createFolder(folderRequest);
         return ResponseEntity.ok("폴더 생성 완료");
+    }
+
+    /**
+     * 폴더 정보 갱신 — name / paraCategory.
+     * paraCategory 변경은 소속 링크들에 cascade 동기화 (ERD §1.1).
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<FolderResponse> updateFolder(
+            @PathVariable int id,
+            @RequestBody FolderUpdateRequest request
+    ) {
+        return ResponseEntity.ok(folderService.updateFolder(id, request));
     }
 }
