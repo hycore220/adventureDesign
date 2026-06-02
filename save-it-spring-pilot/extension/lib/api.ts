@@ -378,9 +378,13 @@ export interface RemindCandidate {
 export async function getTodayRecommendations(
   userName: string,
   limit = 10,
+  mode?: string,
 ): Promise<RemindCandidate[]> {
+  // mode=youtube_ctx 면 백엔드가 content_type=YOUTUBE 인 저장 링크만 골라줌
+  // (호스트 불필요 — youtube.com / youtu.be / m.youtube.com 동일 취급)
+  const modeParam = mode ? `&mode=${encodeURIComponent(mode)}` : "";
   const res = await fetchWithAuth(
-    `/recommendation-weights/users/${encodeURIComponent(userName)}/today?limit=${limit}`,
+    `/recommendation-weights/users/${encodeURIComponent(userName)}/today?limit=${limit}${modeParam}`,
   );
   return unwrap<RemindCandidate[]>(res);
 }

@@ -1,4 +1,4 @@
-import { ExternalLink, Flame, RefreshCw } from "lucide-react";
+import { ExternalLink, Flame, Play, RefreshCw } from "lucide-react";
 import { cn } from "../../lib/utils";
 import {
   getTodayRecommendations,
@@ -12,16 +12,32 @@ interface TodayViewProps {
   userName: string;
 }
 
+// 위젯은 페이지 안에서 동작하므로 location 이 현재 사이트. 유튜브면 컨텍스트 모드.
+function isYoutubePage(): boolean {
+  try {
+    const h = location.hostname.toLowerCase();
+    return /(^|\.)youtube\.com$/.test(h) || h === "youtu.be";
+  } catch {
+    return false;
+  }
+}
+
 export function TodayView({ userName }: TodayViewProps) {
   const [candidates, setCandidates] = useState<RemindCandidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const onYoutube = isYoutubePage();
 
   async function load() {
     setLoading(true);
     setError("");
     try {
-      const list = await getTodayRecommendations(userName, 10);
+      // 유튜브 watch/일반 페이지에선 "내가 저장한 유튜브 영상"만 (youtube_ctx)
+      const list = await getTodayRecommendations(
+        userName,
+        10,
+        onYoutube ? "youtube_ctx" : undefined,
+      );
       setCandidates(list);
     } catch (e) {
       setError(e instanceof Error ? e.message : "추천 로드 실패");
@@ -60,9 +76,13 @@ export function TodayView({ userName }: TodayViewProps) {
   return (
     <div className="space-y-3 px-3 py-3">
       <header className="flex items-center gap-2">
-        <Flame className="h-3.5 w-3.5 text-orange-500" />
+        {onYoutube ? (
+          <Play className="h-3.5 w-3.5 text-red-600" />
+        ) : (
+          <Flame className="h-3.5 w-3.5 text-orange-500" />
+        )}
         <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          오늘의 추천
+          {onYoutube ? "내가 저장한 유튜브" : "오늘의 추천"}
         </span>
         <span className="flex-1" />
         <button
@@ -90,8 +110,11 @@ export function TodayView({ userName }: TodayViewProps) {
 
       {!loading && !error && candidates.length === 0 && (
         <p className="py-6 text-center text-xs italic text-muted-foreground">
-          오늘 추천할 링크가 없어요.<br />
-          링크를 저장하면 며칠 뒤부터 추천이 시작됩니다.
+          {onYoutube ? (
+            <>저장한 유튜브 영상이 없어요.<br />유튜브 영상을 저장하면 여기 모여요.</>
+          ) : (
+            <>오늘 추천할 링크가 없어요.<br />링크를 저장하면 며칠 뒤부터 추천이 시작됩니다.</>
+          )}
         </p>
       )}
 
