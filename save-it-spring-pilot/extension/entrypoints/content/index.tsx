@@ -7,6 +7,12 @@ import { LoginView } from "../popup/LoginView";
 
 export default defineContentScript({
   matches: ["<all_urls>"],
+  // 우리 웹앱은 풀 네이티브 UI 가 있으므로 플로팅 위젯을 띄우지 않는다
+  // (기능 중복 + 화면 겹침 방지). 익스텐션은 "다른 사이트" 저장용.
+  excludeMatches: [
+    "https://save-it-pilot-web.vercel.app/*",
+    "http://localhost:3000/*",
+  ],
   cssInjectionMode: "ui",
 
   async main(ctx) {
