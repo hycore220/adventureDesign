@@ -26,14 +26,22 @@ public class RateLimiterService {
 
     /** 알려진 작업 키 — 코드 곳곳에 문자열 박지 않도록 상수화 */
     public static final String OP_LINK_CREATE = "link-create";
+    /** 인증 전 엔드포인트 — IP 단위로 제한 (어뷰징/브루트포스 완화) */
+    public static final String OP_SIGNUP = "signup";
+    public static final String OP_LOGIN = "login";
 
     private final Map<String, Integer> limits = new HashMap<>();
     private final ConcurrentHashMap<Key, AtomicInteger> counters = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<IpKey, AtomicInteger> ipCounters = new ConcurrentHashMap<>();
 
     public RateLimiterService(
-            @Value("${app.ratelimit.link-create:200}") int linkCreate
+            @Value("${app.ratelimit.link-create:200}") int linkCreate,
+            @Value("${app.ratelimit.signup:20}") int signup,
+            @Value("${app.ratelimit.login:50}") int login
     ) {
         limits.put(OP_LINK_CREATE, linkCreate);
+        limits.put(OP_SIGNUP, signup);
+        limits.put(OP_LOGIN, login);
     }
 
     /**
@@ -65,6 +73,26 @@ public class RateLimiterService {
         return limits.getOrDefault(operation, Integer.MAX_VALUE);
     }
 
+    /**
+     * 인증 전 엔드포인트(signup/login)용 — 클라이언트 IP 단위 일일 제한.
+     * ip 가 null/blank 면 제한 생략(프록시 헤더 못 읽는 환경 안전망).
+     */
+    public void acquireByIp(String operation, String ip) {
+        Integer limit = limits.get(operation);
+        if (limit == null) return;
+        if (ip == null || ip.isBlank()) return;
+
+        IpKey key = new IpKey(ip, operation, LocalDate.now());
+        int after = ipCounters.computeIfAbsent(key, k -> new AtomicInteger(0)).incrementAndGet();
+        if (after > limit) {
+            ipCounters.get(key).decrementAndGet();
+            throw new RateLimitExceededException(operation, limit);
+        }
+    }
+
     private record Key(int userId, String operation, LocalDate day) {
+    }
+
+    private record IpKey(String ip, String operation, LocalDate day) {
     }
 }

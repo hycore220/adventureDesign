@@ -208,6 +208,33 @@ psql "$DATABASE_URL" -c "SELECT COUNT(*) FROM link_reminders WHERE sent_at > NOW
 
 ---
 
+## 8.5 🚨 비상 대응 런북 (API 주소 유출 / 어뷰징 시)
+
+백엔드 URL 이 새도 데이터는 인증(JWT)으로 보호되지만, 가입/로그인 어뷰징이
+의심되면 아래 순서로 대응한다. **위로 갈수록 가볍고, 아래로 갈수록 강력.**
+
+```bash
+# 1) 신규 가입 즉시 차단 (재배포 불필요, 가장 가벼움)
+fly secrets set APP_SIGNUP_ENABLED=false -a save-it-pilot
+#   → 어뷰징 진정되면 다시 true 로
+fly secrets set APP_SIGNUP_ENABLED=true -a save-it-pilot
+
+# 2) IP 레이트리밋 강화 (기본 signup 20/login 50 per IP/day)
+fly secrets set APP_RATELIMIT_SIGNUP=5 APP_RATELIMIT_LOGIN=15 -a save-it-pilot
+
+# 3) 탈취 토큰 전부 무효화 — JWT secret 교체 (전원 재로그인 필요)
+fly secrets set APP_JWT_SECRET="$(openssl rand -base64 48)" -a save-it-pilot
+
+# 4) 인메모리 카운터 리셋 / 임시 중단
+fly machines restart <id> -a save-it-pilot     # 카운터 리셋
+fly scale count 0 -a save-it-pilot              # 완전 차단 (서비스 중단)
+fly scale count 1 -a save-it-pilot              # 복구
+```
+
+> `secrets set` 은 머신을 자동 재시작하므로 별도 배포 불필요. 1번이 가장 흔한 대응.
+
+---
+
 ## 9. 다음 단계 (베타 안정화 이후)
 
 1. **Redis 도입** — RateLimiter 를 Redis 로 옮겨야 멀티 인스턴스 가능. `fly redis create` 로 native Redis 띄우면 단순.

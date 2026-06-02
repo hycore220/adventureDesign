@@ -1,8 +1,11 @@
 package com.example.spring_boot_1.UserData;
 
 import com.example.spring_boot_1.config.JwtService;
+import com.example.spring_boot_1.config.RateLimiterService;
 import com.example.spring_boot_1.config.SecurityUtil;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,9 +33,21 @@ public class AuthController {
 
     private final UserDataService userDataService;
     private final JwtService jwtService;
+    private final RateLimiterService rateLimiter;
+
+    /** 가입 kill-switch — 어뷰징 시 APP_SIGNUP_ENABLED=false 로 즉시 차단 (재배포 불필요). */
+    @Value("${app.signup.enabled:true}")
+    private boolean signupEnabled;
 
     @PostMapping("/signup")
-    public ResponseEntity<?> signup(@RequestBody AuthRequest request) {
+    public ResponseEntity<?> signup(@RequestBody AuthRequest request, HttpServletRequest http) {
+        if (!signupEnabled) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                    "error", "signup_disabled",
+                    "message", "현재 신규 가입이 일시 중단되었습니다."));
+        }
+        rateLimiter.acquireByIp(RateLimiterService.OP_SIGNUP, clientIp(http));
+
         String userName = request.resolvedUserName();
         String password = request.getPassword();
 
@@ -49,7 +64,9 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody AuthRequest request) {
+    public ResponseEntity<?> login(@RequestBody AuthRequest request, HttpServletRequest http) {
+        rateLimiter.acquireByIp(RateLimiterService.OP_LOGIN, clientIp(http));
+
         String userName = request.resolvedUserName();
         String password = request.getPassword();
 
@@ -63,6 +80,20 @@ public class AuthController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
         }
+    }
+
+    /**
+     * 클라이언트 실제 IP — Fly proxy 뒤라 X-Forwarded-For 첫 항목을 우선 사용.
+     * 없으면 Fly-Client-IP, 그래도 없으면 remoteAddr.
+     */
+    private static String clientIp(HttpServletRequest http) {
+        String xff = http.getHeader("X-Forwarded-For");
+        if (xff != null && !xff.isBlank()) {
+            return xff.split(",")[0].trim();
+        }
+        String fly = http.getHeader("Fly-Client-IP");
+        if (fly != null && !fly.isBlank()) return fly.trim();
+        return http.getRemoteAddr();
     }
 
     /**
