@@ -22,7 +22,15 @@ public class LinkResponse {
     private String contentType;
     private String thumbnailUrl;
 
+    /** 우선도 (문서 ERD priority): 0=보통 / 1=중요 / 2=매우. importance 에서 역매핑. */
+    private int priority;
+
+    /** 우선도 모를 때(0=보통) 기본. */
     public static LinkResponse from(LinkData link) {
+        return from(link, 0);
+    }
+
+    public static LinkResponse from(LinkData link, int priority) {
         ParaStatus para = link.getPARAStatus();
         ContentType ct = link.getContentType();
         return new LinkResponse(
@@ -36,7 +44,8 @@ public class LinkResponse {
                 link.getReadAt(),
                 link.getHost(),
                 ct == null ? null : ct.name(),
-                link.getThumbnailUrl()
+                link.getThumbnailUrl(),
+                priority
         );
     }
 }

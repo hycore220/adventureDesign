@@ -94,6 +94,13 @@ public class RecommendationWeightService {
                 });
     }
 
+    /** 링크의 가중치를 보장하고 importance 를 지정값으로 설정 (저장 시 우선도 반영). */
+    public RecommendationWeight setImportanceForLink(LinkData link, double importance) {
+        RecommendationWeight rw = ensureForLink(link);
+        rw.setImportance(importance);
+        return recommendationWeightRepository.save(rw);
+    }
+
     /** 현재 사용자의 가중치만 반환. */
     public List<RecommendationWeight> getAll() {
         return recommendationWeightRepository.findByBookmarkUserDataId(SecurityUtil.currentUserId());

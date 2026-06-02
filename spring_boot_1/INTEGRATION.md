@@ -247,11 +247,13 @@ JWT는 헤더 기반이라 `SameSite` / `Secure` 쿠키 설정 신경 쓸 필요
 
 **링크 저장 요청**:
 ```ts
-{ link: "https://...", title: "제목", folderId: 1, paraStatus?: "Project" }
+{ link: "https://...", title: "제목", folderId: 1, paraStatus?: "Project", priority?: 0 }
 ```
 - `folderId`가 있으면 해당 폴더의 PARA가 자동 적용 (ERD §1.1 source of truth)
 - `paraStatus`는 폴더가 없을 때만 사용. `"Project" | "area" | "r" | "archive"` 같은 자유 입력 가능 (정규화됨)
-- 저장과 동시에 추천 가중치(`importance=0.5`) 자동 생성 → `/today` 즉시 후보
+- `priority` (문서 ERD priority): **0=보통 / 1=중요 / 2=매우**. 백엔드가 importance(0.5/0.75/1.0)로 매핑해 가중치 저장 → `/today` 점수 반영. 생략 시 0.
+- 저장과 동시에 추천 가중치 행 자동 생성/설정 → `/today` 즉시 후보
+- `LinkResponse.priority` 는 저장된 importance 에서 역매핑한 0/1/2.
 
 **응답 (LinkResponse)**:
 ```json

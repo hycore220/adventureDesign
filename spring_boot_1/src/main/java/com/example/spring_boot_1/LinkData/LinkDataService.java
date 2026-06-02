@@ -2,6 +2,8 @@ package com.example.spring_boot_1.LinkData;
 
 import com.example.spring_boot_1.FolderData.Folder;
 import com.example.spring_boot_1.FolderData.FolderRepository;
+import com.example.spring_boot_1.RecommendationData.RecommendationWeight;
+import com.example.spring_boot_1.RecommendationData.RecommendationWeightRepository;
 import com.example.spring_boot_1.RecommendationData.RecommendationWeightService;
 import com.example.spring_boot_1.TagData.LinkTagRepository;
 import com.example.spring_boot_1.UserData.UserData;
@@ -15,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Service
@@ -25,6 +29,7 @@ public class LinkDataService {
     private final FolderRepository folderRepository;
     private final UserDataRepository userDataRepository; // 매핑 처리를 위해 주입 추가
     private final RecommendationWeightService recommendationWeightService;
+    private final RecommendationWeightRepository recommendationWeightRepository; // 우선도(importance) 조회
     private final LinkTagRepository linkTagRepository; // 링크 삭제 시 태그 정션 정리
 
     // 1. 링크 추가 (생성) — request.userName 무시, 현재 인증 사용자로 강제
@@ -58,9 +63,45 @@ public class LinkDataService {
         }
 
         LinkData saved = linkDataRepository.save(linkData);
-        // 저장과 동시에 가중치 default 행 생성 — /today 후보 자격 즉시 확보
-        recommendationWeightService.ensureForLink(saved);
-        return LinkResponse.from(saved);
+        // 저장과 동시에 가중치 행 생성/설정 — /today 후보 자격 즉시 확보 + 우선도 반영
+        int priority = request.getPriority() == null ? 0 : clampPriority(request.getPriority());
+        if (request.getPriority() != null) {
+            recommendationWeightService.setImportanceForLink(saved, priorityToImportance(priority));
+        } else {
+            recommendationWeightService.ensureForLink(saved);
+        }
+        return LinkResponse.from(saved, priority);
+    }
+
+    // ── 우선도(priority 0/1/2) ↔ importance(0~1) 매핑 ──────────────
+    //   문서 ERD priority. 스코어링은 importance(double) 를 쓰므로 양방향 변환.
+
+    private static int clampPriority(int p) {
+        return Math.max(0, Math.min(2, p));
+    }
+
+    static double priorityToImportance(int priority) {
+        return switch (clampPriority(priority)) {
+            case 2 -> 1.0;   // 매우
+            case 1 -> 0.75;  // 중요
+            default -> 0.5;  // 보통
+        };
+    }
+
+    static int importanceToPriority(double importance) {
+        if (importance >= 0.9) return 2;
+        if (importance >= 0.65) return 1;
+        return 0;
+    }
+
+    /** 주어진 링크들의 importance → priority 맵 (없으면 0=보통). N+1 회피용 일괄 조회. */
+    private Map<Integer, Integer> priorityMapForUser(int userId) {
+        return recommendationWeightRepository.findByBookmarkUserDataId(userId).stream()
+                .filter(rw -> rw.getBookmark() != null)
+                .collect(Collectors.toMap(
+                        rw -> rw.getBookmark().getId(),
+                        rw -> importanceToPriority(rw.getImportance()),
+                        (a, b) -> a));
     }
 
     /**
@@ -81,8 +122,9 @@ public class LinkDataService {
     public List<LinkResponse> getByUserName(String userName) {
         SecurityUtil.requireOwnerByName(userName);
         List<LinkData> links = linkDataRepository.findByUserDataUserName(userName);
+        Map<Integer, Integer> prio = priorityMapForUser(SecurityUtil.currentUserId());
         return links.stream()
-                .map(LinkResponse::from)
+                .map(l -> LinkResponse.from(l, prio.getOrDefault(l.getId(), 0)))
                 .toList();
     }
 
@@ -105,8 +147,9 @@ public class LinkDataService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 폴더 ID입니다."));
         requireFolderOwner(folder, SecurityUtil.currentUserId());
         List<LinkData> links = linkDataRepository.findByFolderId(folderId);
+        Map<Integer, Integer> prio = priorityMapForUser(SecurityUtil.currentUserId());
         return links.stream()
-                .map(LinkResponse::from)
+                .map(l -> LinkResponse.from(l, prio.getOrDefault(l.getId(), 0)))
                 .toList();
     }
 

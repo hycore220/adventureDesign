@@ -20,4 +20,10 @@ public class LinkRequest {
 
     /** YouTube 카드 등에 노출할 썸네일 URL. 없으면 null. */
     private String thumbnailUrl;
+
+    /**
+     * 우선도 (문서 ERD priority). UI 0=보통 / 1=중요 / 2=매우.
+     * null 이면 기본(보통). 백엔드는 이를 importance(0~1)로 매핑해 가중치에 저장.
+     */
+    private Integer priority;
 }
