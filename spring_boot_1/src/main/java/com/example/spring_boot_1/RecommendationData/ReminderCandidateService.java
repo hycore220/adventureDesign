@@ -76,8 +76,9 @@ public class ReminderCandidateService {
             if (link == null) continue;
             if (rw.isSnoozed()) continue;
 
-            // 컨텍스트 매칭 (REMIND_STRATEGY §3.3) — 호스트 일치만 통과
-            if (normalizedHost != null && !normalizedHost.equals(link.getHost())) continue;
+            // 컨텍스트 매칭 (REMIND_STRATEGY §3.3) — 호스트 일치만 통과.
+            // 양쪽 www. 제거 후 비교 → 저장 시점이 달라 www. 가 섞인 기존 행도 매칭.
+            if (normalizedHost != null && !normalizedHost.equals(stripWww(link.getHost()))) continue;
 
             ScoringEngine.ParaPolicy policy = scoringEngine.paraPolicyOf(link.getPARAStatus());
             if (!policy.eligible()) continue;
@@ -122,7 +123,14 @@ public class ReminderCandidateService {
         if (host == null || host.isBlank()) {
             throw new IllegalArgumentException(mode + " 모드는 host 파라미터가 필수입니다.");
         }
-        return host.trim().toLowerCase(Locale.ROOT);
+        return stripWww(host);
+    }
+
+    /** 호스트 정규화 — 소문자 + 선행 "www." 제거. youtube.com ↔ www.youtube.com 동일 취급. */
+    private static String stripWww(String host) {
+        if (host == null) return null;
+        String h = host.trim().toLowerCase(Locale.ROOT);
+        return h.startsWith("www.") ? h.substring(4) : h;
     }
 
     private boolean isContextMode(String mode) {

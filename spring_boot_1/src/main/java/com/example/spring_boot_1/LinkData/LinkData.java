@@ -115,7 +115,12 @@ public class LinkData {
         try {
             java.net.URI uri = java.net.URI.create(url.trim());
             String host = uri.getHost();
-            return host == null ? null : host.toLowerCase(java.util.Locale.ROOT);
+            if (host == null) return null;
+            host = host.toLowerCase(java.util.Locale.ROOT);
+            // www. 접두 정규화 — 컨텍스트 매칭(REMIND §3.3)에서
+            // youtube.com ↔ www.youtube.com 불일치 방지.
+            if (host.startsWith("www.")) host = host.substring(4);
+            return host;
         } catch (IllegalArgumentException e) {
             return null;
         }
