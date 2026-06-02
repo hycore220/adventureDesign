@@ -84,7 +84,8 @@ public class RecommendationWeightController {
     /**
      * "오늘 다시 볼 링크" — REMIND_STRATEGY 기반 스코어링.
      * mode: today (기본) | priority | resurface | unread | youtube_ctx | domain_ctx
-     * host: 컨텍스트 모드 필수 — 익스텐션이 활성 탭 호스트를 전달 (예: youtube.com)
+     * host: domain_ctx 모드 필수 (같은 도메인 비교). youtube_ctx 는 content_type(YOUTUBE)
+     *       기준으로 매칭하므로 host 선택 — 익스텐션이 활성 탭 호스트를 전달 (예: youtube.com)
      */
     @GetMapping("/users/{userName}/today")
     public ResponseEntity<List<RemindCandidateResponse>> getRemindCandidates(

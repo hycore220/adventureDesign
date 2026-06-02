@@ -1,5 +1,6 @@
 package com.example.spring_boot_1.RecommendationData;
 
+import com.example.spring_boot_1.LinkData.ContentType;
 import com.example.spring_boot_1.LinkData.LinkData;
 import com.example.spring_boot_1.ReminderData.LinkReminderRepository;
 import com.example.spring_boot_1.config.SecurityUtil;
@@ -76,9 +77,12 @@ public class ReminderCandidateService {
             if (link == null) continue;
             if (rw.isSnoozed()) continue;
 
-            // 컨텍스트 매칭 (REMIND_STRATEGY §3.3) — 호스트 일치만 통과.
-            // 양쪽 www. 제거 후 비교 → 저장 시점이 달라 www. 가 섞인 기존 행도 매칭.
-            if (normalizedHost != null && !normalizedHost.equals(stripWww(link.getHost()))) continue;
+            // 컨텍스트 매칭 (REMIND_STRATEGY §3.3).
+            //  - youtube_ctx: 호스트가 youtu.be / m.youtube.com 등으로 달라도
+            //                 같은 YOUTUBE 콘텐츠끼리 매칭 (content_type 기준)
+            //  - domain_ctx : 같은 도메인 (www. 정규화 후 호스트 일치)
+            if (isContextMode(normalizedMode)
+                    && !contextMatches(normalizedMode, normalizedHost, link)) continue;
 
             ScoringEngine.ParaPolicy policy = scoringEngine.paraPolicyOf(link.getPARAStatus());
             if (!policy.eligible()) continue;
@@ -120,10 +124,22 @@ public class ReminderCandidateService {
      */
     private String normalizeHost(String mode, String host) {
         if (!isContextMode(mode)) return null;
-        if (host == null || host.isBlank()) {
-            throw new IllegalArgumentException(mode + " 모드는 host 파라미터가 필수입니다.");
+        // domain_ctx 는 도메인 비교가 핵심이라 host 필수.
+        // youtube_ctx 는 content_type 으로 매칭하므로 host 없어도 동작 (있으면 무시).
+        if ("domain_ctx".equals(mode) && (host == null || host.isBlank())) {
+            throw new IllegalArgumentException("domain_ctx 모드는 host 파라미터가 필수입니다.");
         }
-        return stripWww(host);
+        return (host == null || host.isBlank()) ? null : stripWww(host);
+    }
+
+    /** 컨텍스트 모드별 매칭 규칙. */
+    private boolean contextMatches(String mode, String normalizedHost, LinkData link) {
+        if ("youtube_ctx".equals(mode)) {
+            // 같은 유튜브 콘텐츠끼리 — youtube.com / youtu.be / m.youtube.com 모두 YOUTUBE 타입
+            return link.getContentType() == ContentType.YOUTUBE;
+        }
+        // domain_ctx — 같은 도메인 (www. 정규화 후 호스트 일치)
+        return normalizedHost != null && normalizedHost.equals(stripWww(link.getHost()));
     }
 
     /** 호스트 정규화 — 소문자 + 선행 "www." 제거. youtube.com ↔ www.youtube.com 동일 취급. */
