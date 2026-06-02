@@ -4,12 +4,23 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface LinkDataRepository extends JpaRepository<LinkData, Integer> {
     List<LinkData> findByUserDataUserName(String userName);
 
     List<LinkData> findByFolderId(int folderId);
+
+    // ── 주간 요약 통계 (REMIND_STRATEGY §3.1 "이번 주 저장/미열람 요약") ──
+
+    /** 이번 주(=since 이후) 새로 저장한 링크 수. */
+    @Query("select count(l) from LinkData l where l.userData.id = :userId and l.createdAt > :since")
+    long countSavedSince(@Param("userId") int userId, @Param("since") LocalDateTime since);
+
+    /** 누적 미열람 링크 수. */
+    @Query("select count(l) from LinkData l where l.userData.id = :userId and l.isRead = false")
+    long countUnread(@Param("userId") int userId);
 
     /**
      * 본인 데이터에 한정해 title 또는 link(url)에 검색어가 포함된 링크를 찾는다.

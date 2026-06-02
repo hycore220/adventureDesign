@@ -121,13 +121,23 @@ public class JwtService {
         String hash = sha256(plainRefresh);
         RefreshToken row = refreshTokenRepository.findByTokenHash(hash)
                 .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 refresh 토큰입니다."));
-        if (row.isExpired()) {
-            refreshTokenRepository.delete(row);
+        // user 는 삭제 전에 미리 확보 (lazy 로딩 안전).
+        UserData user = row.getUserData();
+        boolean expired = row.isExpired();
+
+        // ── 원자적 폐기 (B: race 방지) ──
+        // 엔티티 delete(row) 는 동시 요청 시 StaleObjectStateException(500) 을 던진다.
+        // 대신 conditional bulk delete 로 "실제 1행 지운 요청" 만 통과시킨다.
+        // READ_COMMITTED 에서 동시 두 요청 중 하나만 deleted=1, 나머지는 deleted=0.
+        int deleted = refreshTokenRepository.deleteByTokenHash(hash);
+        if (deleted == 0) {
+            // 다른 동시 요청이 이미 회전시킴 → 깔끔한 401 로 떨어뜨림 (500 아님)
+            throw new IllegalArgumentException("이미 사용된 refresh 토큰입니다.");
+        }
+        if (expired) {
             throw new IllegalArgumentException("만료된 refresh 토큰입니다.");
         }
-        UserData user = row.getUserData();
-        // rotate: 기존 행 즉시 폐기
-        refreshTokenRepository.delete(row);
+
         String newAccess = issueAccessToken(user);
         String newRefresh = issueRefreshToken(user);
         return new RefreshResult(user, newAccess, newRefresh);

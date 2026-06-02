@@ -21,7 +21,7 @@
 #       → 자세한 옵션은 DEPLOY.md 참고.
 # =============================================================================
 
-app = "save-it-backend"
+app = "save-it-pilot"
 primary_region = "nrt"
 
 [build]

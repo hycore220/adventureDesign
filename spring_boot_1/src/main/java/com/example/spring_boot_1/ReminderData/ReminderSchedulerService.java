@@ -39,8 +39,10 @@ public class ReminderSchedulerService {
     private final ReminderCandidateService reminderCandidateService;
     private final LinkReminderRepository linkReminderRepository;
     private final LinkDataRepository linkDataRepository;
+    private final com.example.spring_boot_1.PushData.PushService pushService;
+    private final com.example.spring_boot_1.UserData.UserReminderPrefsRepository prefsRepository;
 
-    /** 사용자당 매 디지스트에 기록할 최대 후보 수. */
+    /** 사용자당 매 디지스트에 기록할 최대 후보 수 (prefs 미설정 시 fallback). */
     @Value("${app.reminder.digest-size:5}")
     private int digestSize;
 
@@ -48,36 +50,85 @@ public class ReminderSchedulerService {
             UserDataRepository userDataRepository,
             ReminderCandidateService reminderCandidateService,
             LinkReminderRepository linkReminderRepository,
-            LinkDataRepository linkDataRepository
+            LinkDataRepository linkDataRepository,
+            com.example.spring_boot_1.PushData.PushService pushService,
+            com.example.spring_boot_1.UserData.UserReminderPrefsRepository prefsRepository
     ) {
         this.userDataRepository = userDataRepository;
         this.reminderCandidateService = reminderCandidateService;
         this.linkReminderRepository = linkReminderRepository;
         this.linkDataRepository = linkDataRepository;
+        this.pushService = pushService;
+        this.prefsRepository = prefsRepository;
     }
 
     /**
-     * 매일 09:00 KST에 모든 사용자의 today 후보 N개를 link_reminders 로 기록.
-     * cron = "초 분 시 일 월 요일", 운영에선 zone/시각 환경변수 분리 권장.
+     * 매시간 정각 (UTC) 틱 — 사용자별 timezone 기준으로 "지금이 발송 시각인지" 판단.
+     *
+     * REMIND_STRATEGY §3.1 개인화:
+     *   - daily : user.dailyTime 의 '시(hour)' 가 그 사용자 timezone 의 현재 시와 일치하면 발사
+     *   - weekly: user.weeklyDow + weeklyTime 의 시가 일치하면 발사
+     *
+     * 분(minute) 단위가 아니라 시(hour) 단위 매칭 — "09시대에 한 번" 의미.
+     * 매시간 정각 1회 실행이므로 시 일치 = 하루 1회 → 중복 발송 없음.
+     * (멀티 인스턴스로 가면 ShedLock 필요. 베타 단일 인스턴스 가정.)
      */
-    @Scheduled(cron = "${app.reminder.daily-cron:0 0 9 * * *}", zone = "Asia/Seoul")
-    public void dailyDigest() {
-        log.info("리마인드 일간 디지스트 시작");
-        int totalInserted = 0;
-        int failedUsers = 0;
+    @Scheduled(cron = "0 0 * * * *", zone = "UTC")
+    public void hourlyTick() {
+        java.time.Instant now = java.time.Instant.now();
+        int dailySent = 0, weeklySent = 0, failed = 0;
 
-        List<UserData> users = userDataRepository.findAll();
-        for (UserData user : users) {
+        // ── daily ──
+        for (var prefs : prefsRepository.findByDailyEnabledTrue()) {
             try {
-                totalInserted += digestForUser(user);
+                if (!isDueNow(prefs.getTimezone(), now, prefs.getDailyTime().getHour())) continue;
+                UserData user = userDataRepository.findById(prefs.getUserId()).orElse(null);
+                if (user == null) continue;
+                int n = digestForUser(user, false, prefs.getMaxItemsPerReminder());
+                if (n > 0) dailySent++;
             } catch (Exception ex) {
-                failedUsers++;
-                log.warn("사용자 {} 디지스트 실패: {}", user.getUserName(), ex.getMessage());
+                failed++;
+                log.warn("daily 틱 실패 userId={} : {}", prefs.getUserId(), ex.getMessage());
             }
         }
 
-        log.info("리마인드 일간 디지스트 종료 — users={}, inserted={}, failed={}",
-                users.size(), totalInserted, failedUsers);
+        // ── weekly ──
+        for (var prefs : prefsRepository.findByWeeklyEnabledTrue()) {
+            try {
+                if (!isWeeklyDueNow(prefs.getTimezone(), now, prefs.getWeeklyDow(), prefs.getWeeklyTime().getHour()))
+                    continue;
+                UserData user = userDataRepository.findById(prefs.getUserId()).orElse(null);
+                if (user == null) continue;
+                if (weeklySummaryForUser(user)) weeklySent++;
+            } catch (Exception ex) {
+                failed++;
+                log.warn("weekly 틱 실패 userId={} : {}", prefs.getUserId(), ex.getMessage());
+            }
+        }
+
+        if (dailySent + weeklySent + failed > 0) {
+            log.info("리마인드 틱 — daily={}, weekly={}, failed={}", dailySent, weeklySent, failed);
+        }
+    }
+
+    /** 해당 timezone 의 현재 '시' 가 targetHour 와 같으면 true. */
+    private boolean isDueNow(String timezone, java.time.Instant now, int targetHour) {
+        java.time.ZonedDateTime local = now.atZone(safeZone(timezone));
+        return local.getHour() == targetHour;
+    }
+
+    /** 해당 timezone 의 현재 요일+시 가 target 과 같으면 true. dow: 1(월)~7(일). */
+    private boolean isWeeklyDueNow(String timezone, java.time.Instant now, int targetDow, int targetHour) {
+        java.time.ZonedDateTime local = now.atZone(safeZone(timezone));
+        return local.getDayOfWeek().getValue() == targetDow && local.getHour() == targetHour;
+    }
+
+    private java.time.ZoneId safeZone(String tz) {
+        try {
+            return java.time.ZoneId.of(tz);
+        } catch (Exception e) {
+            return java.time.ZoneId.of("Asia/Seoul");
+        }
     }
 
     /**
@@ -85,14 +136,27 @@ public class ReminderSchedulerService {
      * ReminderCandidateService 의 소유권 검증을 자연스럽게 통과시킨다.
      * 트랜잭션 경계는 사용자 단위 — 한 명 실패가 다음 사용자에 영향 없음.
      */
+    /** 기존 시그니처 호환 — daily, 기본 size. */
     @Transactional
     public int digestForUser(UserData user) {
+        return digestForUser(user, false, digestSize);
+    }
+
+    /**
+     * 단일 사용자 디지스트. weekly=true 면 mode=weekly + 더 큰 묶음 + 다른 push 라벨.
+     * 명의를 SecurityContext 에 일시 주입하여 소유권 검증을 통과시킨다.
+     */
+    @Transactional
+    public int digestForUser(UserData user, boolean weekly, int size) {
         SecurityContext previous = SecurityContextHolder.getContext();
         try {
             assumeIdentityOf(user);
+            int limit = size > 0 ? size : digestSize;
             List<RemindCandidateResponse> candidates =
-                    reminderCandidateService.getCandidates(user.getUserName(), "today", digestSize);
+                    reminderCandidateService.getCandidates(user.getUserName(), "today", limit);
             int inserted = 0;
+            String previewTitle = null;
+            String mode = weekly ? "weekly" : "daily";
             for (RemindCandidateResponse c : candidates) {
                 LinkData link = linkDataRepository.findById(c.linkId()).orElse(null);
                 if (link == null) continue;
@@ -100,14 +164,47 @@ public class ReminderSchedulerService {
                 reminder.setUserData(user);
                 reminder.setLinkData(link);
                 reminder.setChannel("dashboard");
-                reminder.setMode("daily");
+                reminder.setMode(mode);
                 linkReminderRepository.save(reminder);
+                if (previewTitle == null) previewTitle = link.getTitle();
                 inserted++;
+            }
+            if (inserted > 0 && pushService.isEnabled()) {
+                try {
+                    var payload = weekly
+                            ? com.example.spring_boot_1.PushData.PushService.Payload.weeklyDigest(inserted, previewTitle)
+                            : com.example.spring_boot_1.PushData.PushService.Payload.todayDigest(inserted, previewTitle);
+                    var r = pushService.sendToUser(user.getId(), payload);
+                    log.info("push 발사 [{}] — user={} sent={} removed={} failed={}",
+                            mode, user.getUserName(), r.sent(), r.removed(), r.failed());
+                } catch (Exception ex) {
+                    log.warn("push 발사 예외 user={} : {}", user.getUserName(), ex.getMessage());
+                }
             }
             return inserted;
         } finally {
             SecurityContextHolder.setContext(previous);
         }
+    }
+
+    /**
+     * 주간 회고 — 개별 링크가 아니라 "이번 주 통계 요약" push 발사.
+     * 매일 디지스트와 성격이 다름: 활동/누적 현황 (저장 N · 미열람 M).
+     * @return push 가 1대 이상 발사됐으면 true
+     */
+    @Transactional(readOnly = true)
+    public boolean weeklySummaryForUser(UserData user) {
+        long savedThisWeek = linkDataRepository.countSavedSince(
+                user.getId(), java.time.LocalDateTime.now().minusDays(7));
+        long totalUnread = linkDataRepository.countUnread(user.getId());
+
+        if (!pushService.isEnabled()) return false;
+        var payload = com.example.spring_boot_1.PushData.PushService.Payload
+                .weeklySummary(savedThisWeek, totalUnread);
+        var r = pushService.sendToUser(user.getId(), payload);
+        log.info("weekly summary push — user={} saved={} unread={} sent={}",
+                user.getUserName(), savedThisWeek, totalUnread, r.sent());
+        return r.sent() > 0;
     }
 
     private void assumeIdentityOf(UserData user) {

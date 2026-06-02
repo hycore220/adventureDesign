@@ -54,7 +54,8 @@ public class SecurityConfig {
                                 "/auth/logout",
                                 "/auth/refresh",
                                 "/health",
-                                "/error"
+                                "/error",
+                                "/push/vapid-public-key"
                         ).permitAll()
                         // 그 외 모든 요청은 인증 필요
                         .anyRequest().authenticated()
@@ -97,10 +98,12 @@ public class SecurityConfig {
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .toList();
-        cfg.setAllowedOrigins(origins);
+        // setAllowedOriginPatterns 로 등록하면 와일드카드 (예: "chrome-extension://*") 가
+        // 동작하면서도 allowCredentials=true 와 양립 가능하다. Chrome 익스텐션의 origin 은
+        // 설치마다 다른 ID 가 붙은 `chrome-extension://<id>` 형태라 패턴 매칭이 필수.
+        cfg.setAllowedOriginPatterns(origins);
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         cfg.setAllowedHeaders(List.of("*"));
-        // 세션 쿠키를 같이 보내려면 필수
         cfg.setAllowCredentials(true);
         cfg.setMaxAge(3600L);
 

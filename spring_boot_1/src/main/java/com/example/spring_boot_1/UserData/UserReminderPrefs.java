@@ -45,6 +45,14 @@ public class UserReminderPrefs {
     @Column(name = "weekly_enabled", nullable = false)
     private boolean weeklyEnabled = true;
 
+    /** 주간 요약 요일 — java.time.DayOfWeek 값 (1=월 … 7=일). 기본 일요일. */
+    @Column(name = "weekly_dow", nullable = false, columnDefinition = "integer default 7")
+    private int weeklyDow = 7;
+
+    /** 주간 요약 발송 시각. 기본 21:00. */
+    @Column(name = "weekly_time", nullable = false, columnDefinition = "time default '21:00:00'")
+    private LocalTime weeklyTime = LocalTime.of(21, 0);
+
     @Column(name = "email_enabled", nullable = false)
     private boolean emailEnabled = false;
 

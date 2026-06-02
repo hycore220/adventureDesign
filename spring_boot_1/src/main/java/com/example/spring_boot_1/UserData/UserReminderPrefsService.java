@@ -46,8 +46,24 @@ public class UserReminderPrefsService {
         UserReminderPrefs prefs = getMine();
         if (request.dailyEnabled() != null) prefs.setDailyEnabled(request.dailyEnabled());
         if (request.dailyTime() != null) prefs.setDailyTime(request.dailyTime());
-        if (request.timezone() != null) prefs.setTimezone(request.timezone());
+        if (request.timezone() != null) {
+            // 유효한 zone id 인지 검증 (잘못된 값이면 스케줄러가 터짐)
+            try {
+                java.time.ZoneId.of(request.timezone());
+            } catch (Exception e) {
+                throw new IllegalArgumentException("유효하지 않은 timezone: " + request.timezone());
+            }
+            prefs.setTimezone(request.timezone());
+        }
         if (request.weeklyEnabled() != null) prefs.setWeeklyEnabled(request.weeklyEnabled());
+        if (request.weeklyDow() != null) {
+            int dow = request.weeklyDow();
+            if (dow < 1 || dow > 7) {
+                throw new IllegalArgumentException("weeklyDow 는 1(월)~7(일) 사이여야 합니다.");
+            }
+            prefs.setWeeklyDow(dow);
+        }
+        if (request.weeklyTime() != null) prefs.setWeeklyTime(request.weeklyTime());
         if (request.emailEnabled() != null) prefs.setEmailEnabled(request.emailEnabled());
         if (request.maxItemsPerReminder() != null) {
             int v = request.maxItemsPerReminder();

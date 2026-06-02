@@ -13,6 +13,8 @@ public record UserReminderPrefsRequest(
         LocalTime dailyTime,
         String timezone,
         Boolean weeklyEnabled,
+        Integer weeklyDow,
+        LocalTime weeklyTime,
         Boolean emailEnabled,
         Integer maxItemsPerReminder
 ) {

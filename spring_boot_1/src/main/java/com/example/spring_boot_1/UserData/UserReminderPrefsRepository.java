@@ -12,4 +12,10 @@ public interface UserReminderPrefsRepository extends JpaRepository<UserReminderP
      * 매시간 정각에 호출되어 "지금 발송 대상" 을 추려낸다.
      */
     List<UserReminderPrefs> findByDailyEnabledTrueAndDailyTimeAndTimezone(LocalTime dailyTime, String timezone);
+
+    /** 매시간 틱 — daily 켜진 전체. 각자 timezone 으로 "지금 시각" 비교는 코드에서. */
+    List<UserReminderPrefs> findByDailyEnabledTrue();
+
+    /** 매시간 틱 — weekly 켜진 전체. */
+    List<UserReminderPrefs> findByWeeklyEnabledTrue();
 }
