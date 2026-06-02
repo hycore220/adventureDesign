@@ -3,6 +3,7 @@ package com.example.spring_boot_1.LinkData;
 import com.example.spring_boot_1.FolderData.Folder;
 import com.example.spring_boot_1.FolderData.FolderRepository;
 import com.example.spring_boot_1.RecommendationData.RecommendationWeightService;
+import com.example.spring_boot_1.TagData.LinkTagRepository;
 import com.example.spring_boot_1.UserData.UserData;
 import com.example.spring_boot_1.UserData.UserDataRepository;
 import com.example.spring_boot_1.config.SecurityUtil;
@@ -23,6 +24,7 @@ public class LinkDataService {
     private final FolderRepository folderRepository;
     private final UserDataRepository userDataRepository; // 매핑 처리를 위해 주입 추가
     private final RecommendationWeightService recommendationWeightService;
+    private final LinkTagRepository linkTagRepository; // 링크 삭제 시 태그 정션 정리
 
     // 1. 링크 추가 (생성) — request.userName 무시, 현재 인증 사용자로 강제
     public LinkResponse create(LinkRequest request) {
@@ -165,6 +167,7 @@ public class LinkDataService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 링크 id입니다."));
         requireLinkOwner(linkData);
         recommendationWeightService.deleteByBookmarkId(id);
+        linkTagRepository.deleteByLinkId(id); // 태그 정션 먼저 정리 (FK 무결성)
         linkDataRepository.delete(linkData);
     }
 
