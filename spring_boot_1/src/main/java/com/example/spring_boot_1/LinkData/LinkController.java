@@ -46,6 +46,16 @@ public class LinkController {
         return ResponseEntity.ok("링크 삭제 완료");
     }
 
+    /**
+     * 일괄 작업 — 여러 링크를 한번에 삭제(DELETE)하거나 폴더로 이동(MOVE).
+     * 본인 소유 + 존재하는 ID 만 처리, 나머지는 건너뜀.
+     * 예) "모두 Archive" = action=MOVE + folderId=<ARCHIVE 폴더>
+     */
+    @PostMapping("/bulk")
+    public ResponseEntity<LinkBulkResponse> bulk(@RequestBody LinkBulkRequest request) {
+        return ResponseEntity.ok(linkDataService.bulk(request));
+    }
+
     @PostMapping("/{id}/read")
     public ResponseEntity<String> markRead(@PathVariable int id) {
         linkDataService.markRead(id);

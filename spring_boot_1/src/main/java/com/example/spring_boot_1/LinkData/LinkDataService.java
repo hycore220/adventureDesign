@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 
 @RequiredArgsConstructor
 @Service
@@ -169,6 +170,57 @@ public class LinkDataService {
         recommendationWeightService.deleteByBookmarkId(id);
         linkTagRepository.deleteByLinkId(id); // 태그 정션 먼저 정리 (FK 무결성)
         linkDataRepository.delete(linkData);
+    }
+
+    /**
+     * 일괄 작업 — 본인 소유 + 존재하는 ID 만 처리하고 나머지는 조용히 건너뛴다.
+     * 보안상 클라이언트가 보낸 ID 는 신뢰하지 않고 소유권으로 필터링한다.
+     */
+    public LinkBulkResponse bulk(LinkBulkRequest request) {
+        if (request == null || request.ids() == null || request.ids().isEmpty()) {
+            throw new IllegalArgumentException("ids 가 비어 있습니다.");
+        }
+        String action = request.action() == null ? "" : request.action().trim().toUpperCase(Locale.ROOT);
+        int userId = SecurityUtil.currentUserId();
+        int requested = request.ids().size();
+
+        // 본인 소유 + 존재하는 링크만 추림
+        List<LinkData> owned = linkDataRepository.findAllById(request.ids()).stream()
+                .filter(l -> l.getUserData() != null && l.getUserData().getId() == userId)
+                .toList();
+
+        int affected = switch (action) {
+            case "DELETE" -> bulkDelete(owned);
+            case "MOVE" -> bulkMove(owned, request.folderId(), userId);
+            default -> throw new IllegalArgumentException(
+                    "지원하지 않는 action 입니다: " + request.action() + " (DELETE | MOVE)");
+        };
+        return new LinkBulkResponse(requested, affected);
+    }
+
+    private int bulkDelete(List<LinkData> links) {
+        for (LinkData link : links) {
+            recommendationWeightService.deleteByBookmarkId(link.getId());
+            linkTagRepository.deleteByLinkId(link.getId()); // 태그 정션 정리 (FK 무결성)
+        }
+        linkDataRepository.deleteAll(links);
+        return links.size();
+    }
+
+    private int bulkMove(List<LinkData> links, Integer folderId, int userId) {
+        if (folderId == null) {
+            throw new IllegalArgumentException("MOVE 는 folderId 가 필수입니다.");
+        }
+        Folder folder = folderRepository.findById(folderId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 폴더 ID입니다."));
+        requireFolderOwner(folder, userId);
+        for (LinkData link : links) {
+            link.setFolder(folder);
+            // 폴더가 PARA 의 source of truth (ERD §1.1) — 이동 후 폴더 PARA 따라감
+            link.setPARAStatus(resolveParaStatus(folder, null));
+        }
+        linkDataRepository.saveAll(links);
+        return links.size();
     }
 
     private void requireLinkOwner(LinkData linkData) {
