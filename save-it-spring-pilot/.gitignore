@@ -1,0 +1,22 @@
+# 의존성
+node_modules/
+
+# 빌드 산출물
+.next/
+.output/
+.wxt/
+dist/
+out/
+build/
+
+# Vercel
+.vercel/
+
+# 로컬 env (운영 secret/override) — .env.example / .env.production 은 커밋 OK
+.env.local
+.env*.local
+
+# OS / 로그
+.DS_Store
+*.log
+npm-debug.log*
