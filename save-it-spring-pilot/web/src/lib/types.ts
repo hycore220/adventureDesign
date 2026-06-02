@@ -46,7 +46,7 @@ export function toLink(s: SpringLinkResponse, folderId: number | null = null): L
     url: s.link,
     title: s.title,
     description: null,
-    priority: 0,
+    priority: s.priority ?? 0,
     is_read: s.read ?? false,
     created_at: s.createdAt ?? s.lastUpdate,
     read_at: s.readAt ?? null,

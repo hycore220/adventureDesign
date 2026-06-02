@@ -195,6 +195,8 @@ export interface SpringLinkResponse {
   contentType?: string | null;
   thumbnailUrl?: string | null;
   folderId?: number | null;
+  /** 우선도 0=보통 / 1=중요 / 2=매우 (백엔드가 importance 에서 역매핑). */
+  priority?: number;
 }
 
 export interface SpringFolderContents {
@@ -322,6 +324,8 @@ export interface LinkCreateRequest {
   link: string;
   title: string;
   folderId: number;
+  /** 우선도 0=보통 / 1=중요 / 2=매우. 생략 시 보통. */
+  priority?: number;
 }
 
 export async function createLink(

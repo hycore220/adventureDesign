@@ -24,7 +24,7 @@ export function AddLinkModal({
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState(""); // 백엔드 미저장, UX 만
-  const [priority, setPriority] = useState(0); // 백엔드 미저장
+  const [priority, setPriority] = useState(0); // 0보통/1중요/2매우 — 백엔드 저장됨
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [duplicate, setDuplicate] = useState<{ id: number } | null>(null);
@@ -55,6 +55,7 @@ export function AddLinkModal({
         link: url.trim(),
         title: title.trim() || url.trim(),
         folderId,
+        priority,
       });
       setUrl("");
       setTitle("");

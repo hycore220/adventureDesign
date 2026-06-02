@@ -59,7 +59,7 @@ export function QuickAddModal({ open, onOpenChange }: QuickAddModalProps) {
   const titleDirtyRef = useRef(false);
   const [metaLoading, setMetaLoading] = useState(false);
   const [description, setDescription] = useState(""); // 백엔드 미저장
-  const [priority, setPriority] = useState(0); // 백엔드 미저장
+  const [priority, setPriority] = useState(0); // 0보통/1중요/2매우 — 백엔드 저장됨
   const [showDetails, setShowDetails] = useState(false);
 
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -238,6 +238,7 @@ export function QuickAddModal({ open, onOpenChange }: QuickAddModalProps) {
         link: url.trim(),
         title: title.trim() || url.trim(),
         folderId: selectedFolderId,
+        priority,
       });
       onOpenChange(false);
       resetAll();
