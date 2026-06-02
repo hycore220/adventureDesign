@@ -64,6 +64,60 @@ function emit(t: AuthTokens | null) {
 }
 
 // ──────────────────────────────────────────────────────────────────────
+// 백그라운드 라우팅 fetch
+//
+// 콘텐츠 스크립트(플로팅 위젯)는 임의 페이지 오리진에서 돌아가므로
+// 직접 fetch 하면 그 오리진이 Origin 헤더로 붙어 CORS 에 막힌다.
+// → 백그라운드 SW 로 요청을 넘긴다. SW fetch 는 Origin 이 없어 CORS 무관 +
+//   host_permissions 로 백엔드 접근이 허용된다 (MV3 정석).
+// ──────────────────────────────────────────────────────────────────────
+
+/** RequestInit.headers (Headers | string[][] | record) → 평탄 객체로 직렬화. */
+function headersToObject(h: HeadersInit | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!h) return out;
+  if (h instanceof Headers) {
+    h.forEach((v, k) => {
+      out[k] = v;
+    });
+  } else if (Array.isArray(h)) {
+    for (const [k, v] of h) out[k] = v;
+  } else {
+    Object.assign(out, h);
+  }
+  return out;
+}
+
+interface BgFetchResponse {
+  ok: boolean;
+  status?: number;
+  headers?: Record<string, string>;
+  body?: string;
+  error?: string;
+}
+
+/** background SW 를 통해 fetch. Response 를 재구성해 반환한다. */
+async function bgFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const resp = (await browser.runtime.sendMessage({
+    type: "API_FETCH",
+    url,
+    init: {
+      method: init.method ?? "GET",
+      headers: headersToObject(init.headers),
+      body: typeof init.body === "string" ? init.body : undefined,
+    },
+  })) as BgFetchResponse | undefined;
+
+  if (!resp || !resp.ok) {
+    throw new TypeError(resp?.error ?? "Failed to fetch (background)");
+  }
+  return new Response(resp.body ?? "", {
+    status: resp.status,
+    headers: resp.headers,
+  });
+}
+
+// ──────────────────────────────────────────────────────────────────────
 // 저수준 fetch (401 자동 refresh)
 // ──────────────────────────────────────────────────────────────────────
 
@@ -86,7 +140,7 @@ async function fetchWithAuth(
   if (init.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  const res = await bgFetch(`${API_BASE}${path}`, { ...init, headers });
 
   if (res.status === 401 && retry && tokens) {
     const refreshed = await tryRefresh(tokens.refreshToken, tokens.userName, tokens.userId);
@@ -103,7 +157,7 @@ async function tryRefresh(
   userId: number,
 ): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/auth/refresh`, {
+    const res = await bgFetch(`${API_BASE}/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken }),
@@ -182,7 +236,7 @@ export interface AuthResponse {
 }
 
 export async function signup(userName: string, password: string): Promise<AuthTokens> {
-  const res = await fetch(`${API_BASE}/auth/signup`, {
+  const res = await bgFetch(`${API_BASE}/auth/signup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ userName, password }),
@@ -200,7 +254,7 @@ export async function signup(userName: string, password: string): Promise<AuthTo
 }
 
 export async function login(userName: string, password: string): Promise<AuthTokens> {
-  const res = await fetch(`${API_BASE}/auth/login`, {
+  const res = await bgFetch(`${API_BASE}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ userName, password }),
