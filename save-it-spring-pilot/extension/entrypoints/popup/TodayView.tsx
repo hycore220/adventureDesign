@@ -5,6 +5,7 @@ import {
   markLinkRead,
   type RemindCandidate,
 } from "../../lib/api";
+import { readCache, writeCache } from "../../lib/viewCache";
 import { PARA_TOKENS } from "../../lib/para";
 import type { ParaCategory } from "../../lib/types";
 
@@ -23,13 +24,16 @@ function isYoutubePage(): boolean {
 }
 
 export function TodayView({ userName }: TodayViewProps) {
-  const [candidates, setCandidates] = useState<RemindCandidate[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const onYoutube = isYoutubePage();
+  const cacheKey = `saveit_today_${userName}_${onYoutube ? "yt" : "all"}`;
+
+  const [candidates, setCandidates] = useState<RemindCandidate[]>([]);
+  const [hydrated, setHydrated] = useState(false); // 캐시 읽기 완료 여부
+  const [revalidating, setRevalidating] = useState(false); // 실제 fetch 중
+  const [error, setError] = useState("");
 
   async function load() {
-    setLoading(true);
+    setRevalidating(true);
     setError("");
     try {
       // 유튜브 watch/일반 페이지에선 "내가 저장한 유튜브 영상"만 (youtube_ctx)
@@ -39,15 +43,28 @@ export function TodayView({ userName }: TodayViewProps) {
         onYoutube ? "youtube_ctx" : undefined,
       );
       setCandidates(list);
+      writeCache(cacheKey, list);
     } catch (e) {
       setError(e instanceof Error ? e.message : "추천 로드 실패");
     } finally {
-      setLoading(false);
+      setRevalidating(false);
     }
   }
 
   useEffect(() => {
-    load();
+    let alive = true;
+    (async () => {
+      // 1) 캐시 시드 → 새로고침해도 직전 추천 즉시 표시 (깜빡임 제거)
+      const cached = await readCache<RemindCandidate[]>(cacheKey);
+      if (alive && cached) setCandidates(cached);
+      if (alive) setHydrated(true);
+      // 2) 백그라운드 갱신
+      load();
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userName]);
 
   async function openLink(c: RemindCandidate) {
@@ -88,15 +105,15 @@ export function TodayView({ userName }: TodayViewProps) {
         <button
           type="button"
           onClick={load}
-          disabled={loading}
+          disabled={revalidating}
           className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground cursor-pointer disabled:opacity-40"
           title="새로고침"
         >
-          <RefreshCw className={cn("h-3 w-3", loading && "animate-spin")} />
+          <RefreshCw className={cn("h-3 w-3", revalidating && "animate-spin")} />
         </button>
       </header>
 
-      {loading && candidates.length === 0 && (
+      {hydrated && revalidating && candidates.length === 0 && (
         <p className="py-4 text-center text-xs text-muted-foreground">
           벨커브 계산 중…
         </p>
@@ -108,7 +125,7 @@ export function TodayView({ userName }: TodayViewProps) {
         </p>
       )}
 
-      {!loading && !error && candidates.length === 0 && (
+      {hydrated && !revalidating && !error && candidates.length === 0 && (
         <p className="py-6 text-center text-xs italic text-muted-foreground">
           {onYoutube ? (
             <>저장한 유튜브 영상이 없어요.<br />유튜브 영상을 저장하면 여기 모여요.</>

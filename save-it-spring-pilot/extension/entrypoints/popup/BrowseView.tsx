@@ -18,8 +18,16 @@ import {
   type ParaCategory as SpringPara,
 } from "../../lib/api";
 import { useSyncedState } from "../../lib/useSyncedState";
+import { readCache, writeCache } from "../../lib/viewCache";
 import { PARA_ORDER, PARA_TOKENS } from "../../lib/para";
 import type { Folder, Link, ParaCategory } from "../../lib/types";
+
+/** BrowseView 캐시 스냅샷 — 폴더/루트/폴더별 링크. */
+interface BrowseSnapshot {
+  folders: Folder[];
+  paraRoots: Partial<Record<SpringPara, number>>;
+  folderLinks: Record<number, Link[]>;
+}
 
 type ParaFilter = ParaCategory;
 
@@ -34,7 +42,9 @@ export function BrowseView({ userName, onAddLinkToFolder }: BrowseViewProps) {
   const [folderLinks, setFolderLinks] = useState<Record<number, Link[]>>({});
   const [paraRoots, setParaRoots] = useState<Partial<Record<SpringPara, number>>>({});
   const [loading, setLoading] = useState(true);
+  const [hydrated, setHydrated] = useState(false); // 캐시 읽기 완료 여부
   const [error, setError] = useState("");
+  const cacheKey = `saveit_browse_${userName}`;
 
   const [filter, setFilter] = useSyncedState<ParaFilter | null>(
     "saveit_browse_filter",
@@ -60,6 +70,17 @@ export function BrowseView({ userName, onAddLinkToFolder }: BrowseViewProps) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // 1) 캐시 시드 → 새로고침해도 직전 폴더/링크 즉시 표시 (깜빡임 제거)
+      const cached = await readCache<BrowseSnapshot>(cacheKey);
+      if (!cancelled && cached) {
+        setFolders(cached.folders);
+        setParaRoots(cached.paraRoots);
+        setFolderLinks(cached.folderLinks);
+        setLoading(false);
+      }
+      if (!cancelled) setHydrated(true);
+
+      // 2) 백그라운드 갱신
       try {
         const { folders: list, paraRoots } = await getFlatFolders(userName);
         if (cancelled) return;
@@ -98,6 +119,7 @@ export function BrowseView({ userName, onAddLinkToFolder }: BrowseViewProps) {
           }));
         }
         setFolderLinks(next);
+        writeCache<BrowseSnapshot>(cacheKey, { folders: mapped, paraRoots, folderLinks: next });
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "로드 실패");
       } finally {
@@ -107,6 +129,7 @@ export function BrowseView({ userName, onAddLinkToFolder }: BrowseViewProps) {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userName]);
 
   const visibleFolders = folders.filter((f) => {
@@ -323,7 +346,7 @@ export function BrowseView({ userName, onAddLinkToFolder }: BrowseViewProps) {
           </button>
         ))}
 
-      {loading && (
+      {hydrated && loading && folders.length === 0 && (
         <p className="py-4 text-center text-xs text-muted-foreground">
           불러오는 중…
         </p>
@@ -335,7 +358,7 @@ export function BrowseView({ userName, onAddLinkToFolder }: BrowseViewProps) {
         </p>
       )}
 
-      {!loading && !error && (
+      {hydrated && !error && (folders.length > 0 || !loading) && (
         <div>
           {visibleFolders.length === 0 ? (
             <p className="py-6 text-center text-xs italic text-muted-foreground">
