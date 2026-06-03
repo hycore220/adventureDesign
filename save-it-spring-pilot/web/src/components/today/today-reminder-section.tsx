@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/useAuth";
 import {
   getTodayRecommendations,
+  loadTokens,
   type RemindCandidate,
 } from "@/lib/api";
+import { getTodayCache, setTodayCache } from "@/lib/today-cache";
 import { RemindCard } from "./remind-card";
 
 export function TodayReminderSection() {
@@ -13,19 +15,37 @@ export function TodayReminderSection() {
   const userName =
     auth.status === "authenticated" ? auth.session.user.userName : null;
 
-  const [items, setItems] = useState<RemindCandidate[]>([]);
-  const [loading, setLoading] = useState(true);
+  // 첫 렌더부터 캐시된 직전 추천으로 시드 → 탭 재방문 시 스켈레톤 없이 즉시 표시.
+  const seed = getTodayCache(loadTokens()?.userName);
+  const [items, setItems] = useState<RemindCandidate[]>(seed ?? []);
+  // 보여줄 데이터가 한 번이라도 확보됐는지 (캐시 히트 or fetch 완료)
+  const [loaded, setLoaded] = useState<boolean>(seed != null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userName) return;
-    setLoading(true);
     setError(null);
+    // 재방문이라 캐시가 있으면 즉시 표시
+    const cached = getTodayCache(userName);
+    if (cached) {
+      setItems(cached);
+      setLoaded(true);
+    }
+    // 백그라운드 갱신 (stale-while-revalidate)
     getTodayRecommendations(userName, 10)
-      .then(setItems)
-      .catch((e) => setError(e instanceof Error ? e.message : "fetch 실패"))
-      .finally(() => setLoading(false));
+      .then((list) => {
+        setItems(list);
+        setTodayCache(userName, list);
+        setLoaded(true);
+      })
+      .catch((e) => {
+        setError(e instanceof Error ? e.message : "fetch 실패");
+        setLoaded(true); // 콜드 에러 시 스켈레톤 멈추고 에러/빈상태 노출
+      });
   }, [userName]);
+
+  // 캐시/데이터가 아직 없을 때만 스켈레톤
+  const loading = !loaded;
 
   return (
     <section className="space-y-2">
