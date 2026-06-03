@@ -1,8 +1,10 @@
 .gradle/
 build/
+bin/
 
 **/.gradle/
 **/build/
+**/bin/
 
 *.class
 *.lock
