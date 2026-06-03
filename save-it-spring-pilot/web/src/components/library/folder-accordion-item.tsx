@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, ChevronDown, ChevronRight, FolderOpen } from "lucide-react";
+import {
+  ArrowUpRight,
+  ChevronDown,
+  ChevronRight,
+  FolderOpen,
+  Trash2,
+} from "lucide-react";
 import { LinkCard } from "./link-card";
 import type { Link as LinkRow } from "@/lib/types";
 
@@ -10,9 +16,19 @@ interface FolderAccordionItemProps {
   id: number;
   name: string;
   links: LinkRow[];
+  /** 주어지면 폴더 삭제 버튼 노출. */
+  onDeleteFolder?: (id: number) => void;
+  /** 주어지면 각 링크에 삭제 버튼 노출. */
+  onDeleteLink?: (id: number) => void;
 }
 
-export function FolderAccordionItem({ id, name, links }: FolderAccordionItemProps) {
+export function FolderAccordionItem({
+  id,
+  name,
+  links,
+  onDeleteFolder,
+  onDeleteLink,
+}: FolderAccordionItemProps) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -36,6 +52,17 @@ export function FolderAccordionItem({ id, name, links }: FolderAccordionItemProp
             {links.length}
           </span>
         </button>
+        {onDeleteFolder && (
+          <button
+            type="button"
+            aria-label={`${name} 폴더 삭제`}
+            title="폴더 삭제"
+            onClick={() => onDeleteFolder(id)}
+            className="flex w-10 items-center justify-center border-l text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive active:bg-accent"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
         <Link
           href={`/folder/${id}`}
           aria-label={`${name} 폴더 페이지 열기`}
@@ -55,7 +82,7 @@ export function FolderAccordionItem({ id, name, links }: FolderAccordionItemProp
             <ul className="space-y-1">
               {links.map((l) => (
                 <li key={l.id}>
-                  <LinkCard link={l} />
+                  <LinkCard link={l} onDelete={onDeleteLink} />
                 </li>
               ))}
             </ul>

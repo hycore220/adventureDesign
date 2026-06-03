@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Dialog } from "@base-ui/react/dialog";
 import { Plus, X } from "lucide-react";
@@ -14,17 +14,21 @@ interface AddFolderModalProps {
   userId: string;
   /** Spring 의 PARA 루트 폴더 id (parent). category 가 unassigned 가 아닐 때 필요. */
   parentId?: number;
+  /** 생성 성공 후 호출 — 클라이언트 컴포넌트 목록 즉시 갱신용 (router.refresh 로는 안 됨). */
+  onCreated?: () => void;
 }
 
-export function AddFolderModal({ category, parentId }: AddFolderModalProps) {
+export function AddFolderModal({ category, parentId, onCreated }: AddFolderModalProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const submittingRef = useRef(false); // IME Enter 중복 제출 방지
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (submittingRef.current) return;
     if (!name.trim()) return;
     if (!parentId || !category) {
       setError("PARA 루트 폴더 정보가 없어요");
@@ -35,16 +39,19 @@ export function AddFolderModal({ category, parentId }: AddFolderModalProps) {
       setError("로그인 정보가 만료됐어요");
       return;
     }
+    submittingRef.current = true;
     setSubmitting(true);
     setError("");
     try {
       await createFolder(tokens.userName, name.trim(), parentId);
       setName("");
       setOpen(false);
+      onCreated?.();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "생성 실패");
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }

@@ -303,6 +303,12 @@ export async function createFolder(
   await unwrap<string>(res);
 }
 
+/** 폴더 삭제 — PARA 루트는 백엔드가 거부(400). */
+export async function deleteFolder(folderId: number): Promise<void> {
+  const res = await fetchWithAuth(`/folder/${folderId}`, { method: "DELETE" });
+  await unwrap<string>(res);
+}
+
 // ── Links ─────────────────────────────────────────────────────────────
 
 export interface LinkCreateRequest {
@@ -332,6 +338,12 @@ export async function getUserLinks(userName: string): Promise<SpringLinkResponse
 /** 링크 읽음 처리 — POST /link/{id}/read. */
 export async function markLinkRead(id: number): Promise<void> {
   await fetchWithAuth(`/link/${id}/read`, { method: "POST" });
+}
+
+/** 링크 삭제 — DELETE /link/{id}. 가중치/태그 정션도 백엔드가 정리. */
+export async function deleteLink(id: number): Promise<void> {
+  const res = await fetchWithAuth(`/link/${id}`, { method: "DELETE" });
+  await unwrap<string>(res);
 }
 
 /** 폴더별 링크 목록. */

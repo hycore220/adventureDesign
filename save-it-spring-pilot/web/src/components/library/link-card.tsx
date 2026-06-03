@@ -1,13 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Trash2 } from "lucide-react";
 import { markLinkRead } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { Link as LinkRow } from "@/lib/types";
 
 interface LinkCardProps {
   link: LinkRow;
+  /** 주어지면 삭제 버튼 노출. 호출자가 confirm/삭제/목록갱신 처리. */
+  onDelete?: (id: number) => void;
 }
 
 function hostOf(url: string) {
@@ -18,7 +20,7 @@ function hostOf(url: string) {
   }
 }
 
-export function LinkCard({ link }: LinkCardProps) {
+export function LinkCard({ link, onDelete }: LinkCardProps) {
   const router = useRouter();
 
   function handleMarkRead() {
@@ -63,6 +65,21 @@ export function LinkCard({ link }: LinkCardProps) {
           <span className="truncate font-mono">{hostOf(link.url)}</span>
         </div>
       </div>
+      {onDelete && (
+        <button
+          type="button"
+          aria-label="링크 삭제"
+          title="삭제"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete(link.id);
+          }}
+          className="shrink-0 rounded-lg p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      )}
       <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
     </a>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import { notFound } from "next/navigation";
 import { AppHeader } from "@/components/shell/app-header";
 import { BackButton } from "@/components/shell/back-button";
@@ -15,6 +15,8 @@ import {
 } from "@/lib/para";
 import { useAuth } from "@/lib/useAuth";
 import {
+  deleteFolder,
+  deleteLink,
   getFlatFolders,
   getLinksByFolder,
   loadTokens,
@@ -60,48 +62,64 @@ export default function CategoryPage({
     ? UNASSIGNED_TOKEN.label
     : PARA_TOKENS[para as Exclude<typeof para, "unassigned">].label;
 
+  // 폴더+링크 재조회 → 캐시·상태 갱신. 생성/삭제 후에도 호출해 즉시 반영.
+  const reload = useCallback(async () => {
+    if (!userName || isUnassigned) return;
+    const { folders: all, paraRoots } = await getFlatFolders(userName);
+    setParaRoots(paraRoots);
+    const adapted: Folder[] = all
+      .filter((f: NormalizedFolder) => f.para_category === para)
+      .map((f) => ({ id: f.id, name: f.name, para_category: f.para_category }));
+    setFolders(adapted);
+    const results = await Promise.all(
+      adapted.map((f) =>
+        getLinksByFolder(f.id)
+          .then((links) => ({ id: f.id, links }))
+          .catch(() => ({ id: f.id, links: [] })),
+      ),
+    );
+    const map: Record<number, Link[]> = {};
+    for (const r of results) map[r.id] = r.links.map((l) => toLink(l, r.id));
+    setLinksByFolder(map);
+    setPageCache<CategorySnapshot>(cacheKey, {
+      folders: adapted,
+      linksByFolder: map,
+      paraRoots,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userName, para, isUnassigned]);
+
   useEffect(() => {
     if (!userName) return;
     if (isUnassigned) {
-      // 우리 Spring 은 미지정 폴더 개념 없음 — 빈 화면 표시
       setLoaded(true);
       return;
     }
-    // 백그라운드 갱신 (캐시 시드돼 있으면 이미 표시 중)
-    getFlatFolders(userName)
-      .then(async ({ folders: all, paraRoots }) => {
-        setParaRoots(paraRoots);
-        const filtered = all.filter(
-          (f: NormalizedFolder) => f.para_category === para,
-        );
-        const adapted: Folder[] = filtered.map((f) => ({
-          id: f.id,
-          name: f.name,
-          para_category: f.para_category,
-        }));
-        setFolders(adapted);
-        // 폴더별 링크 병렬 prefetch
-        const results = await Promise.all(
-          adapted.map((f) =>
-            getLinksByFolder(f.id)
-              .then((links) => ({ id: f.id, links }))
-              .catch(() => ({ id: f.id, links: [] })),
-          ),
-        );
-        const map: Record<number, Link[]> = {};
-        for (const r of results) {
-          map[r.id] = r.links.map((l) => toLink(l, r.id));
-        }
-        setLinksByFolder(map);
-        setPageCache<CategorySnapshot>(cacheKey, {
-          folders: adapted,
-          linksByFolder: map,
-          paraRoots,
-        });
-      })
-      .finally(() => setLoaded(true));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userName, para, isUnassigned]);
+    reload().finally(() => setLoaded(true));
+  }, [userName, isUnassigned, reload]);
+
+  async function handleDeleteFolder(folderId: number) {
+    if (
+      !window.confirm("이 폴더를 삭제할까요?\n폴더 안의 링크도 함께 삭제됩니다.")
+    )
+      return;
+    try {
+      await deleteFolder(folderId);
+      await reload();
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "폴더 삭제 실패");
+    }
+  }
+
+  async function handleDeleteLink(linkId: number) {
+    if (!window.confirm("이 링크를 삭제할까요?")) return;
+    try {
+      await deleteLink(linkId);
+      await reload();
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "링크 삭제 실패");
+    }
+  }
 
   if (isUnassigned) {
     return (
@@ -138,6 +156,8 @@ export default function CategoryPage({
               id={f.id}
               name={f.name}
               links={linksByFolder[f.id] ?? []}
+              onDeleteFolder={handleDeleteFolder}
+              onDeleteLink={handleDeleteLink}
             />
           ))
         )}
@@ -146,6 +166,7 @@ export default function CategoryPage({
             category={para as ParaCategoryLower}
             userId={userId}
             parentId={parentId}
+            onCreated={reload}
           />
         )}
       </div>

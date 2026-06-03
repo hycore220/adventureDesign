@@ -8,7 +8,7 @@ import { ParaBadge } from "@/components/primitives/para-badge";
 import { LinkCard } from "@/components/library/link-card";
 import { AddLinkFab } from "@/components/actions/add-link-fab";
 import { useAuth } from "@/lib/useAuth";
-import { getFlatFolders, getLinksByFolder, loadTokens } from "@/lib/api";
+import { deleteLink, getFlatFolders, getLinksByFolder, loadTokens } from "@/lib/api";
 import { getPageCache, setPageCache } from "@/lib/page-cache";
 import { type Folder, type Link, toLink } from "@/lib/types";
 
@@ -63,6 +63,20 @@ export default function FolderPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userName, folderId]);
 
+  async function handleDeleteLink(linkId: number) {
+    if (!window.confirm("이 링크를 삭제할까요?")) return;
+    try {
+      await deleteLink(linkId);
+      setLinks((prev) => {
+        const next = prev.filter((l) => l.id !== linkId);
+        if (folder) setPageCache<FolderSnapshot>(cacheKey, { folder, links: next });
+        return next;
+      });
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "링크 삭제 실패");
+    }
+  }
+
   if (notExists) notFound();
 
   // 폴더 데이터가 아직 없을 때만 로딩 (캐시 있으면 즉시 렌더)
@@ -89,7 +103,9 @@ export default function FolderPage({
             이 폴더는 비어 있어요
           </p>
         ) : (
-          links.map((l) => <LinkCard key={l.id} link={l} />)
+          links.map((l) => (
+            <LinkCard key={l.id} link={l} onDelete={handleDeleteLink} />
+          ))
         )}
       </div>
       {userId && <AddLinkFab folderId={folder.id} userId={userId} />}

@@ -5,6 +5,7 @@ import {
   FolderOpen,
   FolderPlus,
   Plus,
+  Trash2,
   X,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
@@ -12,6 +13,8 @@ import { Input } from "../../components/ui/input";
 import { cn } from "../../lib/utils";
 import {
   createFolder,
+  deleteFolder,
+  deleteLink,
   getFlatFolders,
   getLinksByFolder,
   markLinkRead,
@@ -59,6 +62,7 @@ export function BrowseView({ userName, onAddLinkToFolder }: BrowseViewProps) {
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [creatingFolder, setCreatingFolder] = useState(false);
+  const creatingRef = useRef(false); // 동시 제출 방지 (IME Enter 중복)
   const [folderError, setFolderError] = useState("");
 
   useEffect(() => {
@@ -207,12 +211,16 @@ export function BrowseView({ userName, onAddLinkToFolder }: BrowseViewProps) {
   }
 
   async function handleCreateFolder() {
+    // 동시 제출 가드 — 한글 IME 에서 Enter 가 두 번 발화(조합 확정 + 실제 Enter)해
+    // 같은 폴더가 2개 생성되던 문제 방지. ref 라 즉시(동기) 반영됨.
+    if (creatingRef.current) return;
     if (!filter || !newFolderName.trim()) return;
     const parentId = paraRoots[filter.toUpperCase() as SpringPara];
     if (!parentId) {
       setFolderError("PARA 루트 폴더를 찾을 수 없습니다");
       return;
     }
+    creatingRef.current = true;
     setCreatingFolder(true);
     setFolderError("");
     try {
@@ -230,7 +238,43 @@ export function BrowseView({ userName, onAddLinkToFolder }: BrowseViewProps) {
     } catch (err) {
       setFolderError(err instanceof Error ? err.message : "폴더 생성 실패");
     } finally {
+      creatingRef.current = false;
       setCreatingFolder(false);
+    }
+  }
+
+  async function handleDeleteFolder(id: number) {
+    if (!confirm("이 폴더를 삭제할까요?\n폴더 안의 링크도 함께 삭제됩니다.")) return;
+    try {
+      await deleteFolder(id);
+      const nextFolders = folders.filter((f) => f.id !== id);
+      const nextLinks = { ...folderLinks };
+      delete nextLinks[id];
+      setFolders(nextFolders);
+      setFolderLinks(nextLinks);
+      writeCache<BrowseSnapshot>(cacheKey, {
+        folders: nextFolders,
+        paraRoots,
+        folderLinks: nextLinks,
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "폴더 삭제 실패");
+    }
+  }
+
+  async function handleDeleteLink(link: Link) {
+    if (!confirm("이 링크를 삭제할까요?")) return;
+    try {
+      await deleteLink(link.id);
+      const fid = link.folder_id;
+      const nextLinks = { ...folderLinks };
+      if (fid && nextLinks[fid]) {
+        nextLinks[fid] = nextLinks[fid].filter((l) => l.id !== link.id);
+      }
+      setFolderLinks(nextLinks);
+      writeCache<BrowseSnapshot>(cacheKey, { folders, paraRoots, folderLinks: nextLinks });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "링크 삭제 실패");
     }
   }
 
@@ -311,7 +355,9 @@ export function BrowseView({ userName, onAddLinkToFolder }: BrowseViewProps) {
                 placeholder="폴더 이름"
                 className="h-8 text-xs"
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") handleCreateFolder();
+                  // IME 조합 중 Enter 는 무시 (한글 중복 생성 방지)
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing)
+                    handleCreateFolder();
                   if (e.key === "Escape") cancelNewFolder();
                 }}
               />
@@ -405,6 +451,15 @@ export function BrowseView({ userName, onAddLinkToFolder }: BrowseViewProps) {
                           <Plus className="h-3.5 w-3.5" />
                         </button>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteFolder(folder.id)}
+                        aria-label={`${folder.name} 폴더 삭제`}
+                        title="폴더 삭제"
+                        className="flex w-8 items-center justify-center border-l text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive active:bg-accent cursor-pointer"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                     {isOpen && (
                       <div className="border-t bg-background/40 p-1.5">
@@ -421,6 +476,7 @@ export function BrowseView({ userName, onAddLinkToFolder }: BrowseViewProps) {
                                   host={host(link.url)}
                                   isRead={link.is_read}
                                   onClick={() => openLink(link)}
+                                  onDelete={() => handleDeleteLink(link)}
                                 />
                               </li>
                             ))}
@@ -444,28 +500,45 @@ function LinkRow({
   host,
   isRead,
   onClick,
+  onDelete,
 }: {
   title: string;
   host: string;
   isRead: boolean;
   onClick: () => void;
+  onDelete?: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <div
       className={cn(
-        "group flex w-full items-center gap-2 rounded-lg border bg-card px-2.5 py-2 text-left transition-colors active:bg-accent cursor-pointer",
+        "group flex w-full items-stretch overflow-hidden rounded-lg border bg-card transition-colors",
         isRead && "opacity-70",
       )}
     >
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-xs font-medium">{title}</div>
-        <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
-          {host && <span className="truncate font-mono">{host}</span>}
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex min-w-0 flex-1 items-center gap-2 px-2.5 py-2 text-left active:bg-accent cursor-pointer"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-xs font-medium">{title}</div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            {host && <span className="truncate font-mono">{host}</span>}
+          </div>
         </div>
-      </div>
-      <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-    </button>
+        <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+      </button>
+      {onDelete && (
+        <button
+          type="button"
+          onClick={onDelete}
+          aria-label="링크 삭제"
+          title="삭제"
+          className="flex shrink-0 items-center justify-center px-2 text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive active:bg-accent cursor-pointer"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      )}
+    </div>
   );
 }

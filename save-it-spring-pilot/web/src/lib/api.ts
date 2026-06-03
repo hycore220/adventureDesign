@@ -317,6 +317,12 @@ export async function createFolder(
   await unwrap<string>(res);
 }
 
+/** 폴더 삭제 — 백엔드가 PARA 루트 폴더는 거부(400). 하위 링크는 함께 정리됨. */
+export async function deleteFolder(folderId: number): Promise<void> {
+  const res = await fetchWithAuth(`/folder/${folderId}`, { method: "DELETE" });
+  await unwrap<string>(res);
+}
+
 // ── Links ─────────────────────────────────────────────────────────────
 
 export interface LinkCreateRequest {
@@ -347,6 +353,12 @@ export async function getUserLinks(
 
 export async function markLinkRead(id: number): Promise<void> {
   await fetchWithAuth(`/link/${id}/read`, { method: "POST" });
+}
+
+/** 링크 삭제 — 가중치/태그 정션도 백엔드가 함께 정리. */
+export async function deleteLink(id: number): Promise<void> {
+  const res = await fetchWithAuth(`/link/${id}`, { method: "DELETE" });
+  await unwrap<string>(res);
 }
 
 export async function getLinksByFolder(
