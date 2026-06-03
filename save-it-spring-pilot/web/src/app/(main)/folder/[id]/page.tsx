@@ -8,8 +8,14 @@ import { ParaBadge } from "@/components/primitives/para-badge";
 import { LinkCard } from "@/components/library/link-card";
 import { AddLinkFab } from "@/components/actions/add-link-fab";
 import { useAuth } from "@/lib/useAuth";
-import { getFlatFolders, getLinksByFolder } from "@/lib/api";
+import { getFlatFolders, getLinksByFolder, loadTokens } from "@/lib/api";
+import { getPageCache, setPageCache } from "@/lib/page-cache";
 import { type Folder, type Link, toLink } from "@/lib/types";
+
+interface FolderSnapshot {
+  folder: Folder;
+  links: Link[];
+}
 
 export default function FolderPage({
   params,
@@ -24,14 +30,16 @@ export default function FolderPage({
   const userId =
     auth.status === "authenticated" ? auth.session.user.id : "";
 
-  const [folder, setFolder] = useState<Folder | null>(null);
-  const [links, setLinks] = useState<Link[]>([]);
-  const [loading, setLoading] = useState(true);
+  // 첫 렌더부터 캐시된 직전 폴더 내용으로 시드 → 재진입 시 "불러오는 중" 없음.
+  const cacheKey = `folder:${loadTokens()?.userName ?? ""}:${folderId}`;
+  const seed = getPageCache<FolderSnapshot>(cacheKey);
+  const [folder, setFolder] = useState<Folder | null>(seed?.folder ?? null);
+  const [links, setLinks] = useState<Link[]>(seed?.links ?? []);
   const [notExists, setNotExists] = useState(false);
 
   useEffect(() => {
     if (!userName || !Number.isFinite(folderId)) return;
-    setLoading(true);
+    // 백그라운드 갱신 (캐시 시드돼 있으면 이미 표시 중)
     Promise.all([
       getFlatFolders(userName),
       getLinksByFolder(folderId).catch(() => []),
@@ -42,19 +50,23 @@ export default function FolderPage({
           setNotExists(true);
           return;
         }
-        setFolder({
+        const nextFolder: Folder = {
           id: found.id,
           name: found.name,
           para_category: found.para_category,
-        });
-        setLinks(springLinks.map((l) => toLink(l, folderId)));
-      })
-      .finally(() => setLoading(false));
+        };
+        const nextLinks = springLinks.map((l) => toLink(l, folderId));
+        setFolder(nextFolder);
+        setLinks(nextLinks);
+        setPageCache<FolderSnapshot>(cacheKey, { folder: nextFolder, links: nextLinks });
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userName, folderId]);
 
   if (notExists) notFound();
 
-  if (loading || !folder) {
+  // 폴더 데이터가 아직 없을 때만 로딩 (캐시 있으면 즉시 렌더)
+  if (!folder) {
     return (
       <div className="flex h-full items-center justify-center p-8 text-xs text-muted-foreground">
         불러오는 중…

@@ -17,10 +17,19 @@ import { useAuth } from "@/lib/useAuth";
 import {
   getFlatFolders,
   getLinksByFolder,
+  loadTokens,
   upperPara,
   type NormalizedFolder,
 } from "@/lib/api";
+import { getPageCache, setPageCache } from "@/lib/page-cache";
 import { type Folder, type Link, toLink } from "@/lib/types";
+
+type ParaRootMap = Partial<Record<"PROJECT" | "AREA" | "RESOURCE" | "ARCHIVE", number>>;
+interface CategorySnapshot {
+  folders: Folder[];
+  linksByFolder: Record<number, Link[]>;
+  paraRoots: ParaRootMap;
+}
 
 export default function CategoryPage({
   params,
@@ -34,14 +43,15 @@ export default function CategoryPage({
   const userId =
     auth.status === "authenticated" ? auth.session.user.id : "";
 
-  const [folders, setFolders] = useState<Folder[]>([]);
+  // 첫 렌더부터 캐시된 직전 내용으로 시드 → 재진입 시 "불러오는 중" 없음.
+  const cacheKey = `category:${loadTokens()?.userName ?? ""}:${para}`;
+  const seed = getPageCache<CategorySnapshot>(cacheKey);
+  const [folders, setFolders] = useState<Folder[]>(seed?.folders ?? []);
   const [linksByFolder, setLinksByFolder] = useState<
     Record<number, Link[]>
-  >({});
-  const [paraRoots, setParaRoots] = useState<
-    Partial<Record<"PROJECT" | "AREA" | "RESOURCE" | "ARCHIVE", number>>
-  >({});
-  const [loading, setLoading] = useState(true);
+  >(seed?.linksByFolder ?? {});
+  const [paraRoots, setParaRoots] = useState<ParaRootMap>(seed?.paraRoots ?? {});
+  const [loaded, setLoaded] = useState<boolean>(seed != null);
 
   if (!isValidParaParam(para)) notFound();
 
@@ -54,10 +64,10 @@ export default function CategoryPage({
     if (!userName) return;
     if (isUnassigned) {
       // 우리 Spring 은 미지정 폴더 개념 없음 — 빈 화면 표시
-      setLoading(false);
+      setLoaded(true);
       return;
     }
-    setLoading(true);
+    // 백그라운드 갱신 (캐시 시드돼 있으면 이미 표시 중)
     getFlatFolders(userName)
       .then(async ({ folders: all, paraRoots }) => {
         setParaRoots(paraRoots);
@@ -83,8 +93,14 @@ export default function CategoryPage({
           map[r.id] = r.links.map((l) => toLink(l, r.id));
         }
         setLinksByFolder(map);
+        setPageCache<CategorySnapshot>(cacheKey, {
+          folders: adapted,
+          linksByFolder: map,
+          paraRoots,
+        });
       })
-      .finally(() => setLoading(false));
+      .finally(() => setLoaded(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userName, para, isUnassigned]);
 
   if (isUnassigned) {
@@ -107,7 +123,7 @@ export default function CategoryPage({
     <>
       <AppHeader title={title} left={<BackButton fallbackHref="/" />} />
       <div className="space-y-2 p-4">
-        {loading ? (
+        {!loaded && folders.length === 0 ? (
           <p className="py-8 text-center text-sm italic text-muted-foreground">
             불러오는 중…
           </p>
