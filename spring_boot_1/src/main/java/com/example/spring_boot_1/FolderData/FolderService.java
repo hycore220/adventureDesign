@@ -2,6 +2,7 @@ package com.example.spring_boot_1.FolderData;
 
 import com.example.spring_boot_1.LinkData.LinkData;
 import com.example.spring_boot_1.LinkData.LinkDataRepository;
+import com.example.spring_boot_1.LinkData.LinkDataService;
 import com.example.spring_boot_1.LinkData.LinkResponse; // 임포트 추가
 import com.example.spring_boot_1.LinkData.ParaStatus;
 import com.example.spring_boot_1.UserData.UserData;
@@ -22,6 +23,7 @@ public class FolderService {
 
     private final FolderRepository folderRepository;
     private final LinkDataRepository linkDataRepository;
+    private final LinkDataService linkDataService;
     private final UserDataRepository userDataRepository;
 
     // 1. 특정 유저의 최상위 폴더 조회
@@ -63,6 +65,13 @@ public class FolderService {
 
         if (folder.getParentFolder() == null) {
             throw new IllegalArgumentException("최상위 PARA 시스템 폴더는 삭제할 수 없습니다.");
+        }
+
+        // 하위 링크 먼저 정리 — link_data.folder_id → folder.id FK 무결성.
+        // LinkDataService.delete 가 가중치/태그 정션까지 함께 정리한다.
+        List<LinkData> children = linkDataRepository.findByFolderId(folderId);
+        for (LinkData link : children) {
+            linkDataService.delete(link.getId());
         }
 
         folderRepository.delete(folder);
