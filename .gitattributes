@@ -1,0 +1,12 @@
+# 언어 통계(linguist)에서 제외 — 실제 앱 코드가 아님.
+# 파일은 유지(빌드 래퍼·테스트 스크립트·서비스워커)하되 언어바에만 안 잡히게.
+
+# Gradle 빌드 래퍼 (자동 생성/vendored — 지우면 빌드 불가)
+spring_boot_1/gradlew  linguist-vendored
+spring_boot_1/gradlew.bat  linguist-vendored
+
+# 개발용 테스트/검증 스크립트
+*.sh  linguist-vendored
+
+# 웹 푸시 서비스워커 (브라우저가 직접 로드, .js 강제 — TS 아님)
+save-it-spring-pilot/web/public/sw.js  linguist-generated
