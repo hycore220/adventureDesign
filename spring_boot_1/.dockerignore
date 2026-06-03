@@ -1,0 +1,50 @@
+# =============================================================================
+#  Docker 빌드 컨텍스트에서 제외할 것들 — 이미지 크기/빌드 속도 둘 다 영향
+# =============================================================================
+
+# Gradle 산출물 / 캐시
+build/
+.gradle/
+bin/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+out/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# 환경 / 비밀 (절대 이미지에 들어가면 안 되는 것들)
+*.env
+.env*
+secrets.*
+*.pem
+*.key
+
+# 로컬 데이터/로그
+*.log
+logs/
+data/
+*.db
+*.sqlite
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker / Fly 자체 파일 (재귀 빌드 방지)
+Dockerfile
+.dockerignore
+fly.toml
+.fly/
+
+# 문서 (이미지 크기 절약)
+*.md
+docs/
+
+# 테스트 (런타임 jar에 어차피 안 들어가지만 빌드 컨텍스트에선 제외)
+src/test/
