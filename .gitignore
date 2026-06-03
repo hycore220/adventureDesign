@@ -1,0 +1,18 @@
+.gradle/
+build/
+bin/
+
+**/.gradle/
+**/build/
+**/bin/
+
+*.class
+*.lock
+
+# JS/TS 빌드 산출물·의존성
+node_modules/
+.next/
+.output/
+.wxt/
+dist/
+.vercel/
