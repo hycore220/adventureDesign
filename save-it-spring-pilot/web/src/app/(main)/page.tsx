@@ -10,9 +10,11 @@ import { useAuth } from "@/lib/useAuth";
 import {
   getFlatFolders,
   getUserLinks,
+  loadTokens,
   type NormalizedFolder,
   type SpringLinkResponse,
 } from "@/lib/api";
+import { getHomeCache, setHomeCache } from "@/lib/home-cache";
 
 export default function LibraryHome() {
   const auth = useAuth();
@@ -21,17 +23,32 @@ export default function LibraryHome() {
   const userId =
     auth.status === "authenticated" ? auth.session.user.id : undefined;
 
-  const [folders, setFolders] = useState<NormalizedFolder[]>([]);
-  const [links, setLinks] = useState<SpringLinkResponse[]>([]);
-  const [loading, setLoading] = useState(true);
+  // 첫 렌더부터 캐시된 직전 값으로 시드 → 탭 재방문 시 0 깜빡임 없음 (SWR).
+  // SSR 에선 loadTokens 가 null 이라 빈 상태로 시작.
+  const seed = getHomeCache(loadTokens()?.userName);
+  const [folders, setFolders] = useState<NormalizedFolder[]>(seed?.folders ?? []);
+  const [links, setLinks] = useState<SpringLinkResponse[]>(seed?.links ?? []);
+  // loaded = 보여줄 데이터가 한 번이라도 확보됐는지 (캐시 히트 or fetch 완료)
+  const [loaded, setLoaded] = useState<boolean>(seed != null);
+  const [loading, setLoading] = useState(seed == null);
 
   useEffect(() => {
     if (!userName) return;
-    setLoading(true);
+    // 재방문이라 캐시가 있으면 즉시 표시
+    const cached = getHomeCache(userName);
+    if (cached) {
+      setFolders(cached.folders);
+      setLinks(cached.links);
+      setLoaded(true);
+      setLoading(false);
+    }
+    // 백그라운드 갱신 (stale-while-revalidate)
     Promise.all([getFlatFolders(userName), getUserLinks(userName)])
       .then(([{ folders }, allLinks]) => {
         setFolders(folders);
         setLinks(allLinks);
+        setHomeCache(userName, { folders, links: allLinks });
+        setLoaded(true);
       })
       .catch((e) => {
         console.error(e);
@@ -66,13 +83,13 @@ export default function LibraryHome() {
             <ParaCard
               key={category}
               category={category}
-              folderCount={folderCountByCategory.get(category) ?? 0}
-              linkCount={linkCountByCategory.get(category) ?? 0}
+              folderCount={loaded ? (folderCountByCategory.get(category) ?? 0) : null}
+              linkCount={loaded ? (linkCountByCategory.get(category) ?? 0) : null}
             />
           ))}
         </div>
         <UnassignedCard
-          linkCount={linkCountByCategory.get("unassigned") ?? 0}
+          linkCount={loaded ? (linkCountByCategory.get("unassigned") ?? 0) : null}
         />
         {loading && (
           <p className="pt-2 text-center text-xs text-muted-foreground">

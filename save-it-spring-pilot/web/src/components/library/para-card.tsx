@@ -4,8 +4,9 @@ import { PARA_TOKENS } from "@/lib/para";
 
 interface ParaCardProps {
   category: ParaCategory;
-  folderCount: number;
-  linkCount: number;
+  /** null = 로딩 전(캐시 없음) → "—" 표시. 숫자면 확정 카운트. */
+  folderCount: number | null;
+  linkCount: number | null;
 }
 
 export function ParaCard({ category, folderCount, linkCount }: ParaCardProps) {
@@ -26,7 +27,7 @@ export function ParaCard({ category, folderCount, linkCount }: ParaCardProps) {
       <div>
         <div className="text-sm font-semibold text-foreground">{token.label}</div>
         <div className="mt-0.5 text-xs text-muted-foreground tabular-nums">
-          {folderCount}개 폴더 · {linkCount}개 링크
+          {folderCount ?? "—"}개 폴더 · {linkCount ?? "—"}개 링크
         </div>
       </div>
     </Link>

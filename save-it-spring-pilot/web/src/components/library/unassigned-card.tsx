@@ -3,7 +3,8 @@ import { Inbox } from "lucide-react";
 import { UNASSIGNED_TOKEN } from "@/lib/para";
 
 interface UnassignedCardProps {
-  linkCount: number;
+  /** null = 로딩 전(캐시 없음) → "—" 표시. */
+  linkCount: number | null;
 }
 
 export function UnassignedCard({ linkCount }: UnassignedCardProps) {
@@ -23,7 +24,7 @@ export function UnassignedCard({ linkCount }: UnassignedCardProps) {
       <div className="flex-1">
         <div className="text-sm font-semibold">{UNASSIGNED_TOKEN.label}</div>
         <div className="text-xs text-muted-foreground tabular-nums">
-          {linkCount}개 링크
+          {linkCount ?? "—"}개 링크
         </div>
       </div>
     </Link>
