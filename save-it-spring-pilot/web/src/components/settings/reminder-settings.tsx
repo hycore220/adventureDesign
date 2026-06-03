@@ -5,6 +5,7 @@ import {
   base64UrlToUint8Array,
   getReminderPrefs,
   getVapidPublicKey,
+  loadTokens,
   sendTestPush,
   sendTestWeeklyPush,
   subscribePushOnServer,
@@ -13,6 +14,7 @@ import {
   updateReminderPrefs,
   type ReminderPrefs,
 } from "@/lib/api";
+import { getPrefsCache, setPrefsCache } from "@/lib/prefs-cache";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const DOW = [
@@ -79,18 +81,23 @@ async function ensureSubscribed(): Promise<PushState> {
 }
 
 export function ReminderSettings() {
-  const [prefs, setPrefs] = useState<ReminderPrefs | null>(null);
+  // 첫 렌더부터 캐시된 직전 설정으로 시드 → 탭 재방문 시 "불러오는 중…" 없이 즉시 표시.
+  const seed = getPrefsCache(loadTokens()?.userName);
+  const [prefs, setPrefs] = useState<ReminderPrefs | null>(seed);
   const [pushState, setPushState] = useState<PushState>("loading");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(seed == null);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
+      // 백그라운드 갱신 (캐시가 있으면 위에서 이미 표시 중)
       try {
-        const [p] = await Promise.all([getReminderPrefs()]);
+        const p = await getReminderPrefs();
         setPrefs(p);
+        const u = loadTokens()?.userName;
+        if (u) setPrefsCache(u, p);
       } catch {
         /* ignore */
       }
@@ -173,6 +180,8 @@ export function ReminderSettings() {
     try {
       const updated = await updateReminderPrefs(p as never);
       setPrefs(updated);
+      const u = loadTokens()?.userName;
+      if (u) setPrefsCache(u, updated); // 캐시도 최신화 → 재방문 시 옛 값 안 보이게
       setMsg("저장됨");
       setTimeout(() => setMsg(null), 1500);
     } catch (e) {
