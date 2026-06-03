@@ -20,4 +20,13 @@ export default defineBackground(() => {
     })();
     return true; // async sendResponse 사용
   });
+
+  // 툴바 아이콘 클릭 → 플로팅 위젯 표시/숨김 토글.
+  // 팝업이 없으므로 onClicked 가 발화한다. content script 가 이 플래그를 구독.
+  const HIDDEN_KEY = "saveit_widget_hidden";
+  browser.action.onClicked.addListener(async () => {
+    const r = await browser.storage.local.get(HIDDEN_KEY);
+    const hidden = r[HIDDEN_KEY] === true;
+    await browser.storage.local.set({ [HIDDEN_KEY]: !hidden });
+  });
 });

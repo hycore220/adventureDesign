@@ -35,6 +35,7 @@ const TOGGLE_SHADOW =
   "0 8px 20px rgba(15, 23, 42, 0.10), 0 2px 4px rgba(15, 23, 42, 0.05)";
 const POS_KEY = "saveit_widget_pos";
 const OPEN_KEY = "saveit_widget_open";
+const HIDDEN_KEY = "saveit_widget_hidden"; // 툴바 아이콘으로 토글 (위젯 자체 숨김)
 const DEFAULT_POS = { top: 20, right: 20 };
 const DRAG_THRESHOLD = 3;
 
@@ -51,6 +52,7 @@ function clampPos(p: { top: number; right: number }) {
 function FloatingWidget() {
   const [pos, setPos] = useState(DEFAULT_POS);
   const [open, setOpen] = useState(false);
+  const [hidden, setHidden] = useState(false); // 툴바 토글로 위젯 숨김
   const [dragging, setDragging] = useState(false);
   const dragRef = useRef<{
     startX: number;
@@ -62,7 +64,7 @@ function FloatingWidget() {
 
   // Initial load
   useEffect(() => {
-    browser.storage.local.get([POS_KEY, OPEN_KEY]).then((r) => {
+    browser.storage.local.get([POS_KEY, OPEN_KEY, HIDDEN_KEY]).then((r) => {
       const savedPos = r[POS_KEY] as { top: number; right: number } | undefined;
       if (savedPos && typeof savedPos.top === "number" && typeof savedPos.right === "number") {
         setPos(clampPos(savedPos));
@@ -70,6 +72,7 @@ function FloatingWidget() {
       if (typeof r[OPEN_KEY] === "boolean") {
         setOpen(r[OPEN_KEY] as boolean);
       }
+      if (r[HIDDEN_KEY] === true) setHidden(true);
     });
   }, []);
 
@@ -91,6 +94,10 @@ function FloatingWidget() {
       if (openChange) {
         const v = openChange.newValue;
         if (typeof v === "boolean") setOpen(v);
+      }
+      const hiddenChange = changes[HIDDEN_KEY];
+      if (hiddenChange) {
+        setHidden(hiddenChange.newValue === true);
       }
     };
     browser.storage.onChanged.addListener(listener);
@@ -155,6 +162,9 @@ function FloatingWidget() {
     touchAction: "none",
     cursor: dragging ? "grabbing" : "grab",
   };
+
+  // 툴바 아이콘으로 끈 상태 → 위젯 자체를 렌더하지 않음 (다시 누르면 복귀)
+  if (hidden) return null;
 
   return (
     <div
